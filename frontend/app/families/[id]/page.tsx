@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, fmtDate, type Item, type Thread } from "@/lib/api";
+import ConsentCard from "@/components/ConsentCard";
 
 function statusText(i: Item) {
   if (i.status === "done") return `Done ${fmtDate(i.completed_on)}`;
@@ -50,10 +51,11 @@ export default function FamilyThread() {
   const { id } = useParams<{ id: string }>();
   const [t, setT] = useState<Thread | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     api<Thread>(`/mothers/${id}/thread`).then(setT).catch((e) => setError((e as Error).message));
-  }, [id]);
+  }, [id, tick]);
 
   if (error) return <p className="notice error">{error}</p>;
   if (!t) return <p className="empty">Loading…</p>;
@@ -68,6 +70,7 @@ export default function FamilyThread() {
         {t.phone ? `+91 ${t.phone}` : "No phone"} · RCH ID {t.rch_id ?? "not on file"} · {t.village ?? "village unknown"} ·
         reminders in {t.language === "ta" ? "Tamil" : "English"}
       </p>
+      <ConsentCard thread={t} onChange={() => setTick((x) => x + 1)} />
 
       {t.pregnancies.map((p) => {
         const anc = p.items.filter((i) => i.schedule === "anc");

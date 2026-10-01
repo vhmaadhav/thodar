@@ -51,6 +51,8 @@ export interface Thread {
   rch_id: string | null;
   village: string | null;
   language: string;
+  consent_at: string | null;
+  opted_out: boolean;
   pregnancies: {
     id: number;
     lmp: string | null;

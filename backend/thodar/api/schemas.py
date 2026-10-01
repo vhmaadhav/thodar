@@ -77,7 +77,15 @@ class ThreadOut(BaseModel):
     rch_id: str | None
     village: str | None
     language: str
+    consent_at: datetime | None
+    opted_out: bool
     pregnancies: list[PregnancyOut]
+
+
+class MotherPatch(BaseModel):
+    consent: bool | None = None  # True records consent now; False withdraws it
+    language: str | None = None  # ta | en
+    phone: str | None = None
 
 
 class FamilySummary(BaseModel):

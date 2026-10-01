@@ -96,3 +96,13 @@ def test_photo_import_needs_sarvam_key_and_rows_import_works(client, monkeypatch
 
     rows = [{"RCH ID": None, "Name": "Revathi S", "Mobile": "9000000099", "Village": "Melur", "LMP": "01-06-2026"}]
     assert client.post("/import/anc/rows", json=rows).json()["created"] == 1
+
+
+def test_consent_language_and_phone(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    assert client.get("/mothers/1/thread").json()["consent_at"] is None
+    out = client.patch("/mothers/1", json={"consent": True, "language": "en", "phone": "+91 98400 12345"}).json()
+    assert out["consent_at"] and out["language"] == "en" and out["phone"] == "9840012345"
+    out = client.patch("/mothers/1", json={"consent": False}).json()
+    assert out["opted_out"] and out["consent_at"] is None
+    assert client.patch("/mothers/1", json={"phone": "123"}).status_code == 422

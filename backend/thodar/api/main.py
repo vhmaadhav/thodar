@@ -1,7 +1,7 @@
 import io
 import json
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from statistics import median
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
@@ -17,6 +17,7 @@ from thodar.api.schemas import (
     AttemptOut,
     BabyOut,
     ItemOut,
+    MotherPatch,
     Metrics,
     PregnancyOut,
     ReviewOut,
@@ -35,7 +36,8 @@ from thodar.importer import (
     import_immunisation_register,
     read_table,
 )
-from thodar.models import Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar import normalize
+from thodar.models import Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
@@ -153,7 +155,29 @@ def thread(mother_id: int, session: Session = Depends(get_session)):
                           items=[_item(i) for i in items if i.baby_id == b.id]) for b in p.babies]
         pregnancies.append(PregnancyOut(id=p.id, lmp=p.lmp, delivery_date=p.delivery_date, items=mine, babies=babies))
     return ThreadOut(mother_id=m.id, name=m.name, phone=m.phone, rch_id=m.rch_id, village=m.village,
-                     language=m.language, pregnancies=pregnancies)
+                     language=m.language, consent_at=m.consent_at, opted_out=m.opted_out, pregnancies=pregnancies)
+
+
+@app.patch("/mothers/{mother_id}")
+def update_mother(mother_id: int, body: MotherPatch, session: Session = Depends(get_session)):
+    """Consent, language and phone. Withdrawing consent stops all automated reminders at once."""
+    m = session.get(Mother, mother_id)
+    if m is None:
+        raise HTTPException(404, "mother not found")
+    if body.consent is True:
+        m.consent_at, m.opted_out = datetime.now(), False
+    elif body.consent is False:
+        m.consent_at, m.opted_out = None, True
+    if body.language:
+        m.language = Language(body.language)
+    if body.phone is not None:
+        cleaned = normalize.phone(body.phone)
+        if body.phone and not cleaned:
+            raise HTTPException(422, "not a valid Indian mobile number")
+        m.phone = cleaned
+    session.commit()
+    return {"ok": True, "consent_at": m.consent_at, "opted_out": m.opted_out, "language": m.language,
+            "phone": m.phone}
 
 
 @app.get("/families", response_model=list[FamilySummary])
