@@ -46,7 +46,10 @@ Sarvam AI at the edges, fixed rules at the core. Sarvam Vision digitises paper r
 | Two-way family reply | No | Mostly no | **Yes — confirm / reschedule** |
 
 ## Item 7 · Links (optional)
-Team LinkedIn profiles, GitHub repo, clickable prototype link.
+- Live demo: `https://huggingface.co/spaces/<user>/thodar` (once deployed; see docs/deploy.md)
+- Code: https://github.com/vhmaadhav/thodar (currently **private**: judges cannot open it unless it is made public or they are invited)
+- Team LinkedIn profiles (one per line)
+- Optional: a 2-minute screen recording of the demo flow (reminders → Tamil reply → voice note → fever goes to staff)
 
 ---
 

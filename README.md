@@ -115,4 +115,6 @@ paper photos (Sarvam Vision, nurse verifies) ─┤──► importer ──► 
 
 ## Status
 
-Round 1 submitted as an idea; working prototype on synthetic data. Next: Sarvam Vision import of paper registers, live Sarvam voice-agent calls, clinical sign-off of schedules and Tamil wording.
+Working prototype on synthetic data, live-tested against Sarvam's APIs (Saaras v3, Bulbul v3, Sarvam-105B, Sarvam Vision). 63 automated tests; CI builds and runs the demo container. Ready to host on Hugging Face Spaces (`sh deploy/prepare_hf_space.sh`, see [docs/deploy.md](docs/deploy.md)); not deployed yet.
+
+Before a pilot: clinical sign-off of schedules, catch-up periods and Tamil wording; a verified WhatsApp Business number; live Sarvam voice-agent calls; Postgres hosted in India.
