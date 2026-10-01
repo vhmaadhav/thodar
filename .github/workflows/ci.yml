@@ -32,3 +32,20 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint app components lib
+
+  container:
+    # Builds the exact image a Hugging Face Space would build, starts it, and checks the demo works.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t thodar .
+      - run: docker run -d --name thodar --user 1000 -p 7860:7860 thodar
+      - name: Wait for the demo and check UI, proxied API and reminders
+        run: |
+          for i in $(seq 1 60); do curl -sf localhost:7860/api/health && break; sleep 2; done
+          curl -sf localhost:7860/ | grep -q "Thodar"
+          curl -sf localhost:7860/api/metrics
+          curl -sf -X POST localhost:7860/api/reminders/run | grep -q '"sent"'
+          curl -sf localhost:7860/samples/voice_fever_ta.wav -o /dev/null
+      - if: failure()
+        run: docker logs thodar
