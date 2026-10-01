@@ -64,6 +64,8 @@ With a Sarvam key in `backend/.env` (`THODAR_SARVAM_API_KEY=...`), the phone pan
 
 Without API keys everything runs offline: WhatsApp messages land in the demo phone, and Sarvam calls fall back to rules or a person.
 
+**One container:** `docker build -t thodar . && docker run -p 7860:7860 thodar` serves the whole demo on http://localhost:7860 (see [docs/deploy.md](docs/deploy.md), including Hugging Face Spaces).
+
 ### Configuration (`backend/.env`, all optional)
 
 | Variable | Purpose |
@@ -74,6 +76,9 @@ Without API keys everything runs offline: WhatsApp messages land in the demo pho
 | `THODAR_WHATSAPP_VERIFY_TOKEN` | Webhook verification token |
 | `THODAR_VOICE_TOOL_KEY` | Shared secret for the Sarvam voice agent's tool calls ([docs/voice-agent.md](docs/voice-agent.md)) |
 | `THODAR_CLINIC_NAME` | Clinic name used in reminders |
+| `THODAR_SESSION_DAYS` | Clinic ANC/immunisation days reminders propose (default `wed`) |
+| `THODAR_AUTO_REMINDERS_AT` | Send reminders automatically each day at this IST time, e.g. `09:00` |
+| `THODAR_STT_PROVIDER` | `sarvam` (default), `indicconformer` (self-hosted) or `elevenlabs` (needs `THODAR_ALLOW_OFFSHORE_PROCESSING=true`) |
 
 ### Tests
 
