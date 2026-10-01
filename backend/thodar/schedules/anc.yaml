@@ -1,0 +1,25 @@
+# Antenatal care contacts, anchored on the last menstrual period (LMP).
+# Windows follow the MoHFW minimum of four ANC visits. Offsets are days from LMP.
+# Clinical lead must confirm before any pilot; a doctor-set interval on the pregnancy overrides spacing.
+name: anc
+version: 2026-10-01
+subject: mother
+anchor: lmp
+owner: obstetrics
+items:
+  - code: anc-1
+    label: ANC visit 1 (by 12 weeks)
+    due_offset_days: 56      # 8 weeks
+    window_end_days: 84      # 12 weeks
+  - code: anc-2
+    label: ANC visit 2 (14–26 weeks)
+    due_offset_days: 98      # 14 weeks
+    window_end_days: 182     # 26 weeks
+  - code: anc-3
+    label: ANC visit 3 (28–34 weeks)
+    due_offset_days: 196     # 28 weeks
+    window_end_days: 238     # 34 weeks
+  - code: anc-4
+    label: ANC visit 4 (36 weeks to term)
+    due_offset_days: 252     # 36 weeks
+    window_end_days: 280     # 40 weeks

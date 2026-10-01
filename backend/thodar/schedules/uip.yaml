@@ -1,0 +1,39 @@
+# Universal Immunisation Programme (India) visits up to age two, anchored on the baby's date of birth.
+# One item per visit; `includes` lists the doses given at that visit. Region-specific doses
+# (e.g. JE) are left out by default. Clinical lead must confirm before any pilot.
+name: uip
+version: 2026-10-01
+subject: baby
+anchor: dob
+owner: paediatrics
+items:
+  - code: uip-birth
+    label: Birth doses
+    includes: [BCG, OPV-0, Hep B birth dose]
+    due_offset_days: 0
+    window_end_days: 14
+  - code: uip-6w
+    label: 6-week vaccines
+    includes: [OPV-1, Penta-1, RVV-1, fIPV-1, PCV-1]
+    due_offset_days: 42
+    window_end_days: 56
+  - code: uip-10w
+    label: 10-week vaccines
+    includes: [OPV-2, Penta-2, RVV-2]
+    due_offset_days: 70
+    window_end_days: 84
+  - code: uip-14w
+    label: 14-week vaccines
+    includes: [OPV-3, Penta-3, RVV-3, fIPV-2, PCV-2]
+    due_offset_days: 98
+    window_end_days: 112
+  - code: uip-9m
+    label: 9-month vaccines
+    includes: [MR-1, PCV booster, fIPV-3]
+    due_offset_days: 270
+    window_end_days: 365
+  - code: uip-16m
+    label: 16–24 month vaccines
+    includes: [MR-2, DPT booster-1, OPV booster]
+    due_offset_days: 487
+    window_end_days: 730

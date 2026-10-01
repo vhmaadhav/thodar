@@ -1,0 +1,42 @@
+# Postnatal care contacts for mother and newborn after a facility birth, anchored on delivery date.
+# Day 0 is the delivery date. Clinical lead must confirm before any pilot.
+name: pnc
+version: 2026-10-01
+anchor: delivery_date
+items:
+  - code: pnc-48h
+    label: PNC within 48 hours
+    subject: mother
+    owner: obstetrics
+    due_offset_days: 0
+    window_end_days: 2
+  - code: pnc-d3
+    label: PNC day 3
+    subject: mother
+    owner: obstetrics
+    due_offset_days: 3
+    window_end_days: 4
+  - code: pnc-d7
+    label: PNC day 7
+    subject: mother
+    owner: obstetrics
+    due_offset_days: 7
+    window_end_days: 9
+  - code: pnc-d42
+    label: PNC 6 weeks
+    subject: mother
+    owner: obstetrics
+    due_offset_days: 42
+    window_end_days: 49
+  - code: nb-48h
+    label: Newborn check within 48 hours
+    subject: baby
+    owner: paediatrics
+    due_offset_days: 0
+    window_end_days: 2
+  - code: nb-d7
+    label: Newborn check day 7
+    subject: baby
+    owner: paediatrics
+    due_offset_days: 7
+    window_end_days: 9
