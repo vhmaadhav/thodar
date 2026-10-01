@@ -137,6 +137,6 @@ class ContactAttempt(Base):
     outcome: Mapped[Outcome] = mapped_column(Enum(Outcome))
     note: Mapped[str | None] = mapped_column(Text)  # non-clinical summary, e.g. "will come Saturday"
     actor: Mapped[str] = mapped_column(String(60), default="system")
-    at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, server_default=func.now())
 
     item: Mapped[ScheduleItem] = relationship(back_populates="attempts")
