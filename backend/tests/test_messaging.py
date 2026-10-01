@@ -180,3 +180,42 @@ def test_bundle_never_stacks_doses_from_one_sequence(session):
     assert "BCG" in body and "Penta" not in body  # birth doses first; later doses need spacing
     assert "மருத்துவர்" in body  # tells the family the doctor plans the rest
     assert "மருத்துவமனையில்" in body
+
+
+def test_typed_ok_confirms_the_whole_bundle_on_the_proposed_day(session):
+    m = _family(session)
+    wa = WhatsAppClient(token="")
+    run = run_reminders(session, TODAY, wa)
+    assert len(run.item_ids) >= 2
+    handle_incoming(session, Incoming(m.phone, "text", text="ok varen"), TODAY, wa, sarvam=SarvamClient(api_key=""))
+    rows = {r.item.id: r for r in build_worklist(session, TODAY, horizon_days=10)}
+    for item_id in run.item_ids:
+        assert rows[item_id].item.status is ItemStatus.confirmed
+        assert rows[item_id].effective_due == date(2026, 10, 7)
+
+
+def test_typed_saturday_reschedules_the_whole_bundle(session):
+    m = _family(session)
+    wa = WhatsAppClient(token="")
+    run = run_reminders(session, TODAY, wa)
+    handle_incoming(session, Incoming(m.phone, "text", text="saturday varen"), TODAY, wa,
+                    sarvam=SarvamClient(api_key=""))
+    rows = {r.item.id: r for r in build_worklist(session, TODAY, horizon_days=10)}
+    assert {rows[i].effective_due for i in run.item_ids} == {date(2026, 10, 3)}
+
+
+def test_family_contact_stop_or_wrong_number_only_removes_them(session):
+    m = _family(session)
+    m.family_phone = "9000000999"
+    session.commit()
+    wa = WhatsAppClient(token="")
+    run_reminders(session, TODAY, wa)
+    handle_incoming(session, Incoming("9000000999", "text", text="STOP"), TODAY, wa)
+    assert m.family_phone is None and not m.opted_out  # the mother still gets reminders
+
+    m.family_phone = "9000000999"
+    session.commit()
+    handle_incoming(session, Incoming("9000000999", "text", text="wrong number"), TODAY, wa)
+    assert m.family_phone is None
+    rows = [r for r in build_worklist(session, TODAY) if r.mother.id == m.id]
+    assert all(r.next_step != "Find correct number" for r in rows)

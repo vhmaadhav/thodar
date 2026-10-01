@@ -85,25 +85,40 @@ def run_reminders(session: Session, today: date, wa: WhatsAppClient, clinic: str
             wa.send_buttons(phone, body, buttons)
         for r in rows:
             record_action(session, r.item, Action.reminder_sent, actor="thodar", channel=Channel.whatsapp,
-                          note=f"proposed {day:%a %d %b}")
+                          note=f"proposed {day.isoformat()}")
             run.item_ids.append(r.item.id)
         run.sent += 1
     session.commit()
     return run
 
 
-def _latest_reminded_item(session: Session, mother: Mother) -> ScheduleItem | None:
-    """The open item we most recently reminded this family about: what a free-text reply refers to."""
+def _latest_reminded(session: Session, mother: Mother) -> tuple[list[ScheduleItem], date | None]:
+    """What a free-text reply refers to: every open item in the family's most recent reminder (one
+    bundle), plus the session day that reminder proposed."""
     stmt = (
-        select(ScheduleItem)
-        .join(ContactAttempt)
+        select(ContactAttempt)
+        .join(ScheduleItem)
         .where(ScheduleItem.mother_id == mother.id,
                ScheduleItem.status.in_([ItemStatus.pending, ItemStatus.confirmed]),
                ContactAttempt.outcome == Outcome.sent,
                ContactAttempt.channel.in_([Channel.whatsapp, Channel.voice]))
         .order_by(ContactAttempt.at.desc(), ContactAttempt.id.desc())
     )
-    return session.scalars(stmt).first()
+    attempts = list(session.scalars(stmt))
+    if not attempts:
+        return [], None
+    latest = attempts[0]
+    # Items reminded in the same run share the note and were logged within a minute of each other.
+    same = [a for a in attempts
+            if a.note == latest.note and abs((latest.at - a.at).total_seconds()) < 60]
+    items = list({a.item_id: a.item for a in same}.values())
+    proposed = None
+    if latest.note and latest.note.startswith("proposed "):
+        try:
+            proposed = date.fromisoformat(latest.note.removeprefix("proposed "))
+        except ValueError:
+            proposed = None
+    return items, proposed
 
 
 def second_lock(rules: Intent, model: tuple[Kind, str | None] | None) -> Intent:
@@ -163,10 +178,24 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
         intent = classify(text or "", today)
         if text and not (intent.kind is Kind.needs_staff and intent.reason.startswith("mentions")):
             intent = second_lock(intent, sarvam.classify(text, today.isoformat()))
-        item = _latest_reminded_item(session, mother)
+        bundle, proposed = _latest_reminded(session, mother)
+        item = bundle[0] if bundle else None
+        if intent.kind is Kind.confirm and intent.on is None:
+            intent = Intent(Kind.confirm, on=proposed, reason=intent.reason)
 
     note = transcript or msg.text
     reply: str | None
+    from_family_contact = bool(mother.family_phone) and msg.phone == mother.family_phone and msg.phone != mother.phone
+    if from_family_contact and intent.kind in (Kind.stop, Kind.wrong_number):
+        # A family contact can take themselves off reminders; they cannot opt the mother out
+        # or mark her number wrong.
+        mother.family_phone = None
+        mother.family_relation = None
+        session.commit()
+        reply = templates.ack_stop(lang) if intent.kind is Kind.stop else None
+        if reply:
+            wa.send_text(msg.phone, reply)
+        return Handled(None, intent, reply, transcript)
     if intent.kind is Kind.stop:
         mother.opted_out = True
         reply = templates.ack_stop(lang)
