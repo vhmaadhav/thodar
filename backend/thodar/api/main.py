@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 from contextlib import asynccontextmanager
@@ -11,6 +12,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from thodar.api.messaging_routes import router as messaging_router
+from thodar.api.messaging_routes import whatsapp
+from thodar.scheduler import daily_loop
 from thodar.api.schemas import (
     ActionIn,
     FamilySummary,
@@ -49,7 +52,9 @@ from thodar.worklist import Bucket, build_worklist, record_action
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    task = asyncio.create_task(daily_loop(whatsapp()))
     yield
+    task.cancel()
 
 
 app = FastAPI(title="Thodar", version="0.1.0", lifespan=lifespan,
