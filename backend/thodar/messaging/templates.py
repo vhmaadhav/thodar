@@ -38,8 +38,13 @@ def _day(d: date) -> str:
     return d.strftime("%d-%m-%Y")
 
 
+CLINIC_DEFAULT = {Language.en: "the clinic", Language.ta: "மருத்துவமனை"}
+
+
 def reminder(item: ScheduleItem, name: str, on: date, clinic: str, lang: Language) -> str:
     what = WHAT[lang][_kind(item)]
+    if clinic == CLINIC_DEFAULT[Language.en]:
+        clinic = CLINIC_DEFAULT[lang]
     if lang is Language.ta:
         return (f"வணக்கம் {name}! {what} {_day(on)} அன்று {clinic}-ல் உள்ளது. "
                 f"வர முடியுமா? கீழே உள்ள பொத்தானை அழுத்தவும் அல்லது பதில் அனுப்பவும்.")

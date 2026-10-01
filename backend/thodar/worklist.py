@@ -137,7 +137,12 @@ def build_worklist(session: Session, today: date, owner: str | None = None,
         rows.append(Row(item, mother, baby, bucket, due, max(overdue, 0), failed, last,
                         suggest_next_step(item, failed, last, today)))
 
-    rows.sort(key=lambda r: (-r.days_overdue, -r.failed_attempts, r.effective_due, r.item.id))
+    # A family waiting for a person to call back comes first. This is a communication state
+    # (they sent a message only staff may answer), not a judgement about their health.
+    rows.sort(key=lambda r: (
+        0 if r.last_attempt and r.last_attempt.outcome is Outcome.needs_staff else 1,
+        -r.days_overdue, -r.failed_attempts, r.effective_due, r.item.id,
+    ))
     return rows
 
 

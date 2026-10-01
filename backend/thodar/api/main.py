@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from thodar.api.messaging_routes import router as messaging_router
 from thodar.api.schemas import (
     ActionIn,
+    FamilySummary,
     AttemptOut,
     BabyOut,
     ItemOut,
@@ -117,6 +118,32 @@ def thread(mother_id: int, session: Session = Depends(get_session)):
         pregnancies.append(PregnancyOut(id=p.id, lmp=p.lmp, delivery_date=p.delivery_date, items=mine, babies=babies))
     return ThreadOut(mother_id=m.id, name=m.name, phone=m.phone, rch_id=m.rch_id, village=m.village,
                      language=m.language, pregnancies=pregnancies)
+
+
+@app.get("/families", response_model=list[FamilySummary])
+def families(q: str | None = None, today: date | None = None, session: Session = Depends(get_session)):
+    """Every mother with her current stage and open/missed counts. Optional name/phone search."""
+    today = today or date.today()
+    stmt = select(Mother).order_by(Mother.name)
+    if q:
+        stmt = stmt.where(Mother.name.ilike(f"%{q}%") | Mother.phone.like(f"%{q}%"))
+    out = []
+    for m in session.scalars(stmt):
+        latest = max(m.pregnancies, key=lambda p: p.lmp or p.delivery_date or date.min, default=None)
+        if latest is None or latest.delivery_date is None:
+            stage = "pregnant"
+        elif (today - latest.delivery_date).days <= 42:
+            stage = "postnatal"
+        else:
+            stage = "infant"
+        counts = dict(session.execute(
+            select(ScheduleItem.status, func.count()).where(ScheduleItem.mother_id == m.id)
+            .group_by(ScheduleItem.status)).all())
+        out.append(FamilySummary(
+            mother_id=m.id, name=m.name, phone=m.phone, village=m.village, stage=stage,
+            open_items=counts.get(ItemStatus.pending, 0) + counts.get(ItemStatus.confirmed, 0),
+            missed=counts.get(ItemStatus.missed, 0)))
+    return out
 
 
 @app.post("/import/{source}")

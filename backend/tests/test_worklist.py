@@ -68,3 +68,12 @@ def test_reschedule_requires_a_date(session):
     row = build_worklist(session, TODAY)[0]
     with pytest.raises(ValueError):
         record_action(session, row.item, Action.reschedule)
+
+
+def test_family_waiting_for_staff_goes_first(session):
+    _delivered(session, "Selvi T", 60, "9000000006")  # older, more overdue items
+    _, p, _ = _delivered(session, "Meena K", 10, "9000000001")
+    meena_item = next(r for r in build_worklist(session, TODAY) if r.mother.name == "Meena K").item
+    record_action(session, meena_item, Action.notify_doctor, note="family asked a question", actor="family")
+    session.flush()
+    assert build_worklist(session, TODAY)[0].mother.name == "Meena K"

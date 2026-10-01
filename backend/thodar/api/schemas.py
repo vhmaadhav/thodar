@@ -80,6 +80,16 @@ class ThreadOut(BaseModel):
     pregnancies: list[PregnancyOut]
 
 
+class FamilySummary(BaseModel):
+    mother_id: int
+    name: str
+    phone: str | None
+    village: str | None
+    stage: str  # pregnant | postnatal | infant
+    open_items: int
+    missed: int
+
+
 class ReviewOut(BaseModel):
     id: int
     source: str
