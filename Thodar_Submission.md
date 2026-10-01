@@ -22,8 +22,8 @@ Thodar is a follow-up desk for hospital and clinic care teams that ties mother a
 
 **Scope checkbox:** ✅ Tick. Sorting is by days overdue and contact attempts (scheduling, not clinical risk). No risk scores, no lab interpretation, no advice. If a doctor tags a case, Thodar only applies the follow-up interval the doctor set.
 
-## Item 4 · How you will build it (73 words · 476 chars)
-Next.js PWA for the nurse worklist (works on low-end phones), FastAPI backend, PostgreSQL. Imports via pandas (Excel/CSV) and HAPI FHIR; record linking by RCH ID, ABHA and phone using Splink fuzzy matching. Visit and vaccine schedules as versioned YAML rules (ANC, PNC, UIP/IAP). WhatsApp Business Cloud API for two-way reminders; Exotel IVR with Bhashini Tamil text-to-speech for voice. ABDM sandbox for ABHA. Hosted on AWS Mumbai with encryption and consent logs (DPDP Act).
+## Item 4 · How you will build it (72 words · 522 chars)
+Sarvam AI at the edges, fixed rules at the core. Sarvam Vision digitises paper registers and MCP cards; nurses verify. Sarvam Voice Agents (Saaras v3, Sarvam-105B, Bulbul v3) on Exotel make Tamil/English reminder calls, logging confirm/reschedule via tool calls; any health question goes to staff. WhatsApp Cloud API quick-replies; Saaras transcribes voice-note replies. Next.js PWA, FastAPI, PostgreSQL; ANC/PNC/UIP schedules as versioned YAML rules; Splink record linking. India-hosted (AWS Mumbai), synthetic data only.
 
 ## Item 5 · Existing work
 **No — we are building a new solution.** (Switch to "Yes" only if a teammate is reusing prior code/product, and name it.)

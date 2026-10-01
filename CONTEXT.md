@@ -70,17 +70,64 @@ Consequences for our design:
 
 ## Planned stack (Item 4)
 
+**Principle: Sarvam AI at the edges, fixed rules at the core.** AI only reads paper and talks to families. Due dates, ordering and ownership are deterministic rules, so nothing clinical is ever decided by a model.
+
 | Layer | Choice | Why |
 |---|---|---|
+| Paper → data | **Sarvam Vision** (Document AI, `doc_ai.extract`) | Digitises photos of ANC/immunisation registers and MCP cards in Tamil + English into rows (name, RCH ID, phone, visit dates). Nurse verifies before saving. Clerical, not clinical |
+| Reminder calls | **Sarvam Voice Agents** (Saaras v3 STT → Sarvam-105B → Bulbul v3 TTS) on **Exotel** or a Sarvam-rented number | Outbound Tamil/English calls; tool calls write `confirmed / reschedule(date) / moved / wrong number` back to our API. Any health question → "the nurse will call you" handoff |
+| WhatsApp | **WhatsApp Cloud API** (Meta) with utility templates + quick-reply buttons | Sarvam's WhatsApp text agents are enterprise-only, so we run WhatsApp ourselves |
+| Voice-note replies | **Saaras v3** (STT, code-mixed Tamil-English) + Sarvam-105B intent label | Families often reply by voice note; we turn it into a non-clinical intent + one-line summary for the nurse |
 | Frontend | Next.js PWA | Nurse worklist + mother–baby timeline; installable, works on low-end phones |
-| Backend | FastAPI (Python) | Same language as data import and record linking |
-| Database | PostgreSQL | Relational: mothers, babies, visits, contacts, audit log |
-| Import | pandas (Excel/CSV), HAPI FHIR | Read the registers and HIS exports teams already keep |
-| Record linking | Splink (probabilistic matching) | Match by RCH ID, ABHA, phone, name, DOB — non-clinical |
-| Schedules | Versioned YAML rules | ANC, PNC, UIP/IAP immunisation; doctor-set intervals |
-| Messaging | WhatsApp Business Cloud API | Two-way reminders, confirm/reschedule replies |
-| Voice | Exotel IVR + Bhashini Tamil TTS | For families without WhatsApp |
-| Identity | ABDM sandbox (ABHA) | Interoperability with national stack |
-| Hosting | AWS Mumbai (ap-south-1) | Data in India; encryption, consent logs (DPDP Act) |
+| Backend | FastAPI (Python) + `sarvamai` SDK | Same language as import, linking and Sarvam SDK |
+| Database | PostgreSQL | Mothers, babies, schedule items, contact attempts, audit log |
+| Import | pandas (Excel/CSV); HAPI FHIR where available | PICME/JANANI have no open API → CSV/Excel exports |
+| Record linking | Splink (probabilistic matching) | RCH ID, ABHA, phone, name, DOB; non-clinical |
+| Schedules | Versioned YAML rules | ANC, PNC, UIP (+ IAP if the doctor chooses); doctor-set intervals |
+| Identity | ABHA stored as a field; ABDM sandbox = stretch goal | Sandbox needs an HIP application/approval; not on the critical path |
+| Hosting | AWS Mumbai (ap-south-1) | Data in India; Sarvam models are self-hosted in India and can run in our own AWS VPC |
+
+Dropped from the earlier draft: Bhashini (Sarvam covers TTS/STT and is the official partner); fine-tuned Whisper (Saaras v3 already handles Tamil/code-mixed speech).
+
+## Feasibility
+
+**Hackathon facts** (healthathon.reskilll.com, checked 1 Oct 2026)
+- **Sarvam AI is the official technology partner**; prizes include technology credits.
+- Design bar: "Leverage existing AI capabilities – agents, orchestration frameworks, APIs and open-source tools"; work with existing workflows; assistive, human-centred, **measurable within 60–90 days**.
+- Use only fake or fully anonymised data.
+- Build sprint: 5 weeks online, 5 Oct – 8 Nov 2026. Top 30 by 14 Nov. Finale 28 Nov 2026, IIT Bombay.
+
+**Cost per family (estimate, Oct 2026 list prices)**
+| Item | Rate | Source |
+|---|---|---|
+| WhatsApp utility message (India) | ~₹0.12–0.15 / delivered msg (Meta now charges in-window utility too from 1 Oct 2026) | Meta rate cards via BSP blogs |
+| Saaras v3 STT | ₹30 / hour (₹0.50 / min) | docs.sarvam.ai/pricing |
+| Bulbul v3 TTS | ₹30 / 10K chars | docs.sarvam.ai/pricing |
+| Sarvam-105B | ₹29 in / ₹73 out per 1M tokens | docs.sarvam.ai/pricing |
+| Sarvam Vision extract | ₹1 / page (10 pages/job, 10 req/min) | docs.sarvam.ai/pricing |
+| AI voice call, all-in | ~₹1–1.5 / min incl. telephony | third-party Sarvam call estimates |
+| Free credits | ₹100 per new Sarvam account | docs.sarvam.ai/pricing |
+
+Rough total: 2–3 WhatsApp nudges + one ~1.5-min call for non-responders ≈ **₹2–3 per due visit**, far below a staff phone call's time cost. Verify before quoting on slides.
+
+**Risks and mitigations**
+| Risk | Mitigation |
+|---|---|
+| WhatsApp template approval / business verification takes time | Start Meta verification in week 1; demo with Meta test number |
+| Handwriting OCR errors on registers | Nurse confirm screen; never auto-save; Excel import as primary path |
+| LLM says something clinical on a call | Narrow prompt + tool-only actions; health questions always hand off; transcripts logged for audit |
+| No open API for PICME/JANANI/U-WIN | Import their CSV/Excel exports; no write-back in the prototype |
+| Families without smartphones (~36% of women lack own phone) | Voice call path; shared family number allowed |
+| DPDP Act consent | Consent captured at registration; opt-out keyword on every message |
+
+## 5-week build plan (5 Oct – 8 Nov)
+
+| Week | Deliverable |
+|---|---|
+| 1 | Synthetic data (mothers + babies, messy CSVs), schema, YAML schedules (ANC, PNC, UIP), Meta + Sarvam accounts |
+| 2 | Import + Splink linking + delivery event creates baby schedule; worklist API |
+| 3 | Next.js worklist + timeline; WhatsApp templates and quick-reply webhook |
+| 4 | Sarvam Voice Agent (Tamil/English) with tool calls; Saaras voice-note intent; Sarvam Vision register import |
+| 5 | Dashboard (on-time %, days overdue, reach rate), guardrail tests, pilot playbook, demo video |
 
 Demo data: synthetic (Synthea + deliberately messy CSVs to show record linking).
