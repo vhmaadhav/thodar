@@ -33,7 +33,9 @@ HEALTH_WORDS = [
     "not feeding", "not drinking", "medicine", "tablet", "emergency", "unwell", "breath",
     "வலி", "காய்ச்சல்", "ரத்த", "இரத்த", "வாந்தி", "மருந்து", "மாத்திரை", "உடம்பு சரியில்ல",
     "இருமல்", "வீக்கம்", "வலிப்பு", "பால் குடிக்க", "மூச்சு",
-    "vali", "kaaichal", "kaichal", "udambu sari",
+    # Tanglish, as families actually type it
+    "vali", "kaaichal", "kaichal", "kaichel", "jaram", "juram", "udambu", "sari illa", "sariyilla",
+    "seriyilla", "vomiting", "loose motion", "motion", "blood", "bleeding", "maruthu", "mathirai",
 ]
 STOP_WORDS = ["stop", "unsubscribe", "நிறுத்து", "niruthu"]
 WRONG_NUMBER = ["wrong number", "rong number", "தவறான எண்", "தப்பான நம்பர்", "thappana number"]

@@ -99,3 +99,23 @@ def test_parse_webhook():
     ]}}]}]}
     kinds = [(m.phone, m.kind) for m in parse_webhook(payload)]
     assert kinds == [("9000000001", "text"), ("9000000001", "button"), ("9000000001", "audio")]
+
+
+def test_tanglish_unwell_goes_to_staff():
+    # Found in live testing: "my daughter is a bit unwell, can we come next week?"
+    assert classify("en ponnu ku udambu konjam sari illa, next week varalama", TODAY).kind is Kind.needs_staff
+
+
+def test_second_lock_escalates_but_never_deescalates():
+    from thodar.messaging.intents import Intent
+    from thodar.messaging.service import second_lock
+
+    rules_resched = Intent(Kind.reschedule, date(2026, 10, 8), "names another day")
+    assert second_lock(rules_resched, (Kind.needs_staff, None)).kind is Kind.needs_staff
+    assert second_lock(rules_resched, (Kind.confirm, None)) is rules_resched  # model can't override a placed reply
+    health = Intent(Kind.needs_staff, reason="mentions 'fever'")
+    assert second_lock(health, (Kind.confirm, None)) is health
+    unknown = Intent(Kind.needs_staff, reason="not understood by rules")
+    filled = second_lock(unknown, (Kind.reschedule, "2026-10-09"))
+    assert filled.kind is Kind.reschedule and filled.on == date(2026, 10, 9)
+    assert second_lock(rules_resched, None) is rules_resched  # offline: rules alone

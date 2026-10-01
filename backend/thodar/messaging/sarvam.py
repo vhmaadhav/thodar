@@ -18,7 +18,8 @@ CLASSIFY_PROMPT = (
     "confirm (they will come), reschedule (they want another day; give the date if stated), "
     "moved (they live elsewhere now), wrong_number, stop (no more messages), or needs_staff "
     "(anything else, and ALWAYS for any mention of health, symptoms, medicine or the baby's condition). "
-    "Never give advice. Today is {today}. Reply as JSON."
+    "Never give advice. Today is {today}. Reply only as JSON: "
+    '{{"label": "<one label>", "date": "YYYY-MM-DD or null"}}'
 )
 
 
@@ -56,6 +57,23 @@ REGISTER_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
         "m16": ("16 mo", "Date 16-24 month vaccines given, empty if blank"),
     },
 }
+
+
+def _mime(filename: str) -> str:
+    name = filename.lower()
+    if name.endswith(".pdf"):
+        return "application/pdf"
+    return "image/png" if name.endswith(".png") else "image/jpeg"
+
+
+def _iso_date(value) -> str | None:
+    """Only a real YYYY-MM-DD date survives; 'next week' and other free text become None."""
+    from datetime import date as _date
+
+    try:
+        return _date.fromisoformat(str(value)).isoformat() if value else None
+    except ValueError:
+        return None
 
 
 class SarvamClient:
@@ -113,13 +131,14 @@ class SarvamClient:
                     "description": "One entry per filled row of the register table, top to bottom",
                     "items": {
                         "type": "object",
+                        "description": "One handwritten row of the register",  # required by Sarvam
                         "properties": {k: {"type": "string", "description": d} for k, (_, d) in fields.items()},
                     },
                 }
             },
         }
         r = httpx.post(f"{self.base_url}/doc-ai/v1/job/extract", headers=self._headers(),
-                       files={"file": (filename, page)},
+                       files={"file": (filename, page, _mime(filename))},
                        data={"schema": json.dumps(schema), "language": language, "output_format": "json"},
                        timeout=60)
         r.raise_for_status()
@@ -144,15 +163,6 @@ class SarvamClient:
         """Sarvam-105B fallback for replies the rules can't place. Output is constrained to our labels."""
         if not self.enabled:
             return None
-        schema = {
-            "type": "object",
-            "properties": {
-                "label": {"type": "string", "enum": LABELS},
-                "date": {"type": ["string", "null"], "description": "YYYY-MM-DD if a day is named"},
-            },
-            "required": ["label", "date"],
-            "additionalProperties": False,
-        }
         try:
             r = httpx.post(
                 f"{self.base_url}/v1/chat/completions",
@@ -160,18 +170,24 @@ class SarvamClient:
                 json={
                     "model": "sarvam-105b",
                     "temperature": 0,
+                    "reasoning_effort": "low",  # some reasoning catches indirect health mentions; budget below keeps content non-empty
+                    "max_tokens": 1500,
                     "messages": [
                         {"role": "system", "content": CLASSIFY_PROMPT.format(today=today)},
                         {"role": "user", "content": text},
                     ],
-                    "response_format": {"type": "json_schema",
-                                        "json_schema": {"name": "reply_label", "schema": schema}},
+                    # json_object, not json_schema: strict schema mode returned empty content with
+                    # reasoning on (seen live, Oct 2026). We validate the label ourselves below.
+                    "response_format": {"type": "json_object"},
                 },
                 timeout=30,
             )
             r.raise_for_status()
-            out = json.loads(r.json()["choices"][0]["message"]["content"])
-            return Kind(out["label"]), out.get("date")
-        except (httpx.HTTPError, KeyError, ValueError) as e:
+            content = r.json()["choices"][0]["message"].get("content")
+            if not content:
+                return None
+            out = json.loads(content)
+            return Kind(out["label"]), _iso_date(out.get("date"))
+        except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
             log.warning("sarvam classify failed: %s", e)
             return None

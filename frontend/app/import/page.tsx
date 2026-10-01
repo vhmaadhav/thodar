@@ -32,6 +32,8 @@ function ReportLine({ rep }: { rep: Report }) {
 export default function ImportPage() {
   const [reports, setReports] = useState<Record<string, Report | string>>({});
   const [drafts, setDrafts] = useState<Record<string, Row[]>>({});
+  // Cells the server flagged as suspicious, keyed "row:col". Editing a cell clears its flag.
+  const [flags, setFlags] = useState<Record<string, Record<string, string>>>({});
   const [reading, setReading] = useState<string | null>(null);
 
   async function upload(source: string, file: File) {
@@ -55,6 +57,11 @@ export default function ImportPage() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.detail ?? JSON.stringify(body));
       setDrafts((d) => ({ ...d, [source]: body.rows }));
+      const f: Record<string, string> = {};
+      for (const [row, cols] of Object.entries(body.issues ?? {}) as [string, Record<string, string>][]) {
+        for (const [col, why] of Object.entries(cols)) f[`${row}:${col}`] = why;
+      }
+      setFlags((x) => ({ ...x, [source]: f }));
       setReports((r) => ({ ...r, [source]: "" }));
     } catch (e) {
       setReports((r) => ({ ...r, [source]: (e as Error).message }));
@@ -74,6 +81,11 @@ export default function ImportPage() {
   }
 
   function editCell(source: string, i: number, col: string, value: string) {
+    setFlags((x) => {
+      const f = { ...(x[source] ?? {}) };
+      delete f[`${i}:${col}`];
+      return { ...x, [source]: f };
+    });
     setDrafts((d) => {
       const rows = [...(d[source] ?? [])];
       rows[i] = { ...rows[i], [col]: value || null };
@@ -129,6 +141,12 @@ export default function ImportPage() {
           <section key={s.key} className="card pad" style={{ marginTop: 14 }}>
             <p className="eyebrow">Draft from photo · {s.title}</p>
             <p className="sub">Check every cell against the paper page and correct anything misread. Nothing is saved yet.</p>
+            {Object.keys(flags[s.key] ?? {}).length > 0 && (
+              <p className="notice error" style={{ marginTop: 8 }}>
+                {Object.keys(flags[s.key]).length} cell{Object.keys(flags[s.key]).length > 1 ? "s" : ""} look wrong (red
+                border). Hover for the reason, compare with the paper and correct.
+              </p>
+            )}
             <div style={{ overflowX: "auto", marginTop: 10 }}>
               <table className="plain">
                 <thead>
@@ -145,7 +163,15 @@ export default function ImportPage() {
                         <td key={c}>
                           <input
                             className="btn small"
-                            style={{ width: "100%", minWidth: 90 }}
+                            title={flags[s.key]?.[`${i}:${c}`]}
+                            aria-invalid={Boolean(flags[s.key]?.[`${i}:${c}`])}
+                            style={{
+                              width: "100%",
+                              minWidth: 90,
+                              ...(flags[s.key]?.[`${i}:${c}`]
+                                ? { borderColor: "var(--madder)", borderWidth: 2, background: "var(--madder-soft)" }
+                                : {}),
+                            }}
                             value={r[c] ?? ""}
                             onChange={(e) => editCell(s.key, i, c, e.target.value)}
                           />

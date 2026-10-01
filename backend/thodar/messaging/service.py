@@ -80,6 +80,22 @@ def _latest_reminded_item(session: Session, mother: Mother) -> ScheduleItem | No
     return session.scalars(stmt).first()
 
 
+def second_lock(rules: Intent, model: tuple[Kind, str | None] | None) -> Intent:
+    """Two locks on safety: rules AND the model read every free-text reply. If either sees something a
+    person must handle, a person handles it. The model can escalate, or fill in a reply the rules could
+    not place, but it can never overrule a rule that already sent the message to staff."""
+    if model is None:
+        return rules
+    kind, on = model
+    if kind is Kind.needs_staff:
+        if rules.kind is Kind.needs_staff:
+            return rules
+        return Intent(Kind.needs_staff, reason=f"model flagged it (rules said {rules.kind})")
+    if rules.kind is Kind.needs_staff and rules.reason == "not understood by rules":
+        return Intent(kind, date.fromisoformat(on) if on else None, reason="sarvam-105b")
+    return rules
+
+
 @dataclass
 class Handled:
     item_id: int | None
@@ -115,11 +131,8 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
                     transcript = None  # misconfigured provider: a person listens instead
             text = transcript
         intent = classify(text or "", today)
-        if intent.kind is Kind.needs_staff and text and intent.reason == "not understood by rules":
-            # Only for replies the rules couldn't place; a health mention never reaches the model.
-            if guess := sarvam.classify(text, today.isoformat()):
-                kind, on = guess
-                intent = Intent(kind, date.fromisoformat(on) if on else None, reason="sarvam-105b")
+        if text and not (intent.kind is Kind.needs_staff and intent.reason.startswith("mentions")):
+            intent = second_lock(intent, sarvam.classify(text, today.isoformat()))
         item = _latest_reminded_item(session, mother)
 
     note = transcript or msg.text

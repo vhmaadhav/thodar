@@ -37,6 +37,7 @@ from thodar.importer import (
     read_table,
 )
 from thodar import normalize
+from thodar.draft_checks import check_rows
 from thodar.models import Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
@@ -275,7 +276,8 @@ async def import_photo(source: str, file: UploadFile, language: str = "ta-IN"):
         rows = client.extract_register(await file.read(), file.filename or "page.jpg", source, language)
     except Exception as e:  # surface the provider's message to the nurse
         raise HTTPException(502, f"Sarvam Vision could not read the page: {e}") from e
-    return {"draft": True, "rows": rows or []}
+    rows = rows or []
+    return {"draft": True, "rows": rows, "issues": check_rows(rows)}
 
 
 @app.post("/import/{source}/rows")
