@@ -114,6 +114,20 @@ class ScheduleItem(Base):
     attempts: Mapped[list["ContactAttempt"]] = relationship(back_populates="item")
 
 
+class LinkReview(Base):
+    """A register row that might belong to a known mother. A person decides; Thodar never merges these."""
+
+    __tablename__ = "link_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(40))  # anc_register | delivery_register | immunisation_register
+    row: Mapped[str] = mapped_column(Text)  # the raw row as JSON
+    candidate_mother_id: Mapped[int] = mapped_column(ForeignKey("mothers.id"))
+    score: Mapped[float]
+    reason: Mapped[str] = mapped_column(String(200))
+    resolved: Mapped[bool] = mapped_column(default=False)
+
+
 class ContactAttempt(Base):
     __tablename__ = "contact_attempts"
 
