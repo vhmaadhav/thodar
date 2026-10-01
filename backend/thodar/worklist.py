@@ -65,14 +65,19 @@ def _failed_streak(attempts: list[ContactAttempt]) -> int:
 
 def suggest_next_step(item: ScheduleItem, failed: int, last: ContactAttempt | None, today: date) -> str:
     """Plain scheduling suggestion. Never clinical."""
-    if item.status is ItemStatus.confirmed:
-        return "Expect at OPD" if effective_due(item) <= today else f"Confirmed for {effective_due(item):%a %d %b}"
-    if item.rescheduled_to and item.rescheduled_to >= today:
-        return f"Booked {item.rescheduled_to:%a %d %b}"
+    # A family's question or a bad number outranks any booking: a person must act first.
     if last and last.outcome is Outcome.needs_staff:
         return "Family asked a question: staff to call"
     if last and last.outcome is Outcome.wrong_number:
         return "Find correct number"
+    if last and last.outcome is Outcome.moved:
+        return "Moved away: update address or transfer"
+    if item.status is ItemStatus.confirmed:
+        return "Expect at OPD" if effective_due(item) <= today else f"Confirmed for {effective_due(item):%a %d %b}"
+    if item.rescheduled_to and item.rescheduled_to >= today:
+        return f"Booked {item.rescheduled_to:%a %d %b}"
+    if last and last.outcome is Outcome.reschedule:
+        return "Call to book a new date"
     if failed >= UNREACHABLE_AFTER:
         return "Ask VHN to visit"
     if failed == 1 or (last and last.channel is Channel.whatsapp and last.outcome is Outcome.sent):
