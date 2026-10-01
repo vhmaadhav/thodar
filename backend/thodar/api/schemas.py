@@ -135,3 +135,5 @@ class Metrics(BaseModel):
     missed_rate: float | None  # missed / (missed + done): the loss-to-care rate
     on_time_rate: float | None  # share of completed items done by their window end
     families_reached_rate: float | None  # share of reminded items with a reply
+    brought_back_visits: int = 0  # overdue visits that happened after Thodar followed up
+    brought_back_families: int = 0

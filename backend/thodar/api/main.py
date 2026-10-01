@@ -41,9 +41,10 @@ from thodar.importer import (
     read_table,
 )
 from thodar import normalize
+from thodar import ai_budget
 from thodar.benefits import benefit_for
 from thodar.draft_checks import check_rows
-from thodar.models import InboxMessage, Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar.models import ErasureLog, OutboxMessage, InboxMessage, Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
@@ -288,6 +289,7 @@ async def import_photo(source: str, file: UploadFile, language: str = "ta-IN"):
     client = SarvamClient()
     if not client.enabled:
         raise HTTPException(501, "Reading photos needs Sarvam Vision: set THODAR_SARVAM_API_KEY.")
+    ai_budget.spend("photo import")
     try:
         rows = client.extract_register(await file.read(), file.filename or "page.jpg", source, language)
     except Exception as e:  # surface the provider's message to the nurse
@@ -377,6 +379,14 @@ def metrics(today: date | None = None, session: Session = Depends(get_session)):
     replied = set(session.scalars(select(ContactAttempt.item_id).where(
         ContactAttempt.outcome.in_([Outcome.confirmed, Outcome.reschedule, Outcome.moved, Outcome.needs_staff]))))
 
+    # Brought back into care: a visit that was overdue, that Thodar followed up (reminder, call or VHN
+    # visit), and that then happened. The number a pilot is judged on.
+    outreach = {}
+    for a in session.scalars(select(ContactAttempt).where(ContactAttempt.outcome == Outcome.sent)):
+        outreach.setdefault(a.item_id, a.at.date())
+    recovered = [i for i in done if i.completed_on and i.completed_on > i.due_date
+                 and i.id in outreach and outreach[i.id] <= i.completed_on]
+
     return Metrics(
         as_of=today,
         open_items=len(rows),
@@ -388,4 +398,69 @@ def metrics(today: date | None = None, session: Session = Depends(get_session)):
         missed_rate=missed / (missed + len(done)) if (missed + len(done)) else None,
         on_time_rate=len(on_time) / len(done) if done else None,
         families_reached_rate=len(reminded & replied) / len(reminded) if reminded else None,
+        brought_back_visits=len(recovered),
+        brought_back_families=len({i.mother_id for i in recovered}),
     )
+
+
+@app.get("/mothers/{mother_id}/export")
+def export_family(mother_id: int, session: Session = Depends(get_session)):
+    """Everything Thodar holds about a family, as JSON (DPDP Act right of access)."""
+    m = session.get(Mother, mother_id)
+    if m is None:
+        raise HTTPException(404, "mother not found")
+    items = list(session.scalars(select(ScheduleItem).where(ScheduleItem.mother_id == m.id)))
+    return {
+        "mother": {"name": m.name, "phone": m.phone, "rch_id": m.rch_id, "abha": m.abha, "village": m.village,
+                   "language": m.language, "consent_at": m.consent_at, "opted_out": m.opted_out,
+                   "family_phone": m.family_phone, "family_relation": m.family_relation},
+        "pregnancies": [{"lmp": p.lmp, "delivery_date": p.delivery_date,
+                         "babies": [{"name": b.name, "dob": b.dob, "sex": b.sex} for b in p.babies]}
+                        for p in m.pregnancies],
+        "visits": [{"label": i.label, "due": i.due_date, "status": i.status, "completed_on": i.completed_on,
+                    "contacts": [{"at": a.at, "channel": a.channel, "outcome": a.outcome, "note": a.note}
+                                 for a in i.attempts]} for i in items],
+        "messages_from_unknown_numbers": [{"at": x.received_at, "text": x.text} for x in session.scalars(
+            select(InboxMessage).where(InboxMessage.resolved_mother_id == m.id))],
+    }
+
+
+class ErasureIn(BaseModel):
+    confirm_name: str  # must match the mother's name, to prevent accidental erasure
+    requested_by: str = "staff"
+
+
+@app.post("/mothers/{mother_id}/erase")
+def erase_family(mother_id: int, body: ErasureIn, session: Session = Depends(get_session)):
+    """Erases a family's data on request (DPDP Act). Irreversible; only a count is kept as proof."""
+    m = session.get(Mother, mother_id)
+    if m is None:
+        raise HTTPException(404, "mother not found")
+    if body.confirm_name.strip().lower() != m.name.strip().lower():
+        raise HTTPException(422, "type the mother's name exactly to confirm erasure")
+    n = 0
+    for item in session.scalars(select(ScheduleItem).where(ScheduleItem.mother_id == m.id)):
+        for a in item.attempts:
+            session.delete(a)
+            n += 1
+        session.delete(item)
+        n += 1
+    for p in m.pregnancies:
+        for b in p.babies:
+            session.delete(b)
+            n += 1
+        session.delete(p)
+        n += 1
+    for model, col in ((LinkReview, LinkReview.candidate_mother_id), (InboxMessage, InboxMessage.resolved_mother_id)):
+        for row in session.scalars(select(model).where(col == m.id)):
+            session.delete(row)
+            n += 1
+    phones = [p for p in (m.phone, m.family_phone) if p]
+    for row in session.scalars(select(OutboxMessage).where(OutboxMessage.to.in_([f"91{p}" for p in phones]))):
+        session.delete(row)
+        n += 1
+    session.delete(m)
+    n += 1
+    session.add(ErasureLog(records_deleted=n, requested_by=body.requested_by))
+    session.commit()
+    return {"erased": True, "records_deleted": n}

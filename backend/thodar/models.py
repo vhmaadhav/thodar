@@ -149,6 +149,28 @@ class InboxMessage(Base):
     resolved_mother_id: Mapped[int | None] = mapped_column(ForeignKey("mothers.id"))
 
 
+class OutboxMessage(Base):
+    """A WhatsApp message Thodar sent (or, in demo mode, would have sent). Survives restarts."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    to: Mapped[str] = mapped_column(String(20), index=True)
+    payload: Mapped[str] = mapped_column(Text)  # the Cloud API JSON body
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+
+class ErasureLog(Base):
+    """Proof that a family's data was erased on request (DPDP Act), without keeping any of it."""
+
+    __tablename__ = "erasure_log"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    records_deleted: Mapped[int]
+    requested_by: Mapped[str] = mapped_column(String(60))
+
+
 class ContactAttempt(Base):
     __tablename__ = "contact_attempts"
 

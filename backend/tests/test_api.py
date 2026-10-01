@@ -130,3 +130,42 @@ def test_unknown_number_lands_in_inbox_and_can_be_attached(client):
     # The next message from that number is now understood as this family's.
     body["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"] = "STOP"
     assert client.post("/webhooks/whatsapp", json=body).json()["handled"][0]["intent"] == "stop"
+
+
+def test_brought_back_into_care_metric(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    client.post("/import/delivery", files={"file": ("del.csv", DELIVERY)})
+    row = next(r for r in client.get("/worklist", params={"today": TODAY}).json() if r["label"] == "PNC day 7")
+    client.post(f"/items/{row['item_id']}/actions", json={"action": "request_visit"})  # Thodar follows up
+    client.post(f"/items/{row['item_id']}/actions", json={"action": "done", "on": str(TODAY)})  # then it happens
+    m = client.get("/metrics", params={"today": TODAY}).json()
+    assert m["brought_back_visits"] == 1 and m["brought_back_families"] == 1
+
+
+def test_export_and_erasure(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    client.post("/import/delivery", files={"file": ("del.csv", DELIVERY)})
+    data = client.get("/mothers/1/export").json()
+    assert data["mother"]["name"] == "Meena K" and data["visits"] and data["pregnancies"][0]["babies"]
+
+    assert client.post("/mothers/1/erase", json={"confirm_name": "wrong"}).status_code == 422
+    out = client.post("/mothers/1/erase", json={"confirm_name": "meena k"}).json()
+    assert out["erased"] and out["records_deleted"] > 10
+    assert client.get("/mothers/1/thread").status_code == 404
+    assert client.get("/worklist", params={"today": TODAY}).json() == []
+
+
+def test_ai_budget_caps_paid_calls(monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    from thodar import ai_budget
+    monkeypatch.setenv("THODAR_AI_DAILY_BUDGET", "2")
+    from thodar.config import get_settings
+    get_settings.cache_clear()
+    ai_budget.reset()
+    ai_budget.spend("x")
+    ai_budget.spend("x")
+    with pytest.raises(HTTPException):
+        ai_budget.spend("x")
+    ai_budget.reset()

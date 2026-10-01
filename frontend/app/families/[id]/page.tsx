@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, fmtDate, type Item, type Thread } from "@/lib/api";
 import ConsentCard from "@/components/ConsentCard";
+import DataRights from "@/components/DataRights";
 
 function statusText(i: Item) {
   if (i.status === "done") return `Done ${fmtDate(i.completed_on)}`;
@@ -123,6 +124,7 @@ export default function FamilyThread() {
           </section>
         );
       })}
+      <DataRights motherId={t.mother_id} name={t.name} />
     </main>
   );
 }

@@ -1,6 +1,9 @@
 """Endpoints for WhatsApp (webhook + reminder runs) and for the Sarvam voice agent's tool calls."""
 
 import base64
+import logging
+import threading
+import json
 from datetime import date
 from urllib.parse import quote
 
@@ -12,16 +15,44 @@ from sqlalchemy.orm import Session
 
 from thodar import normalize
 from thodar.config import get_settings
+from thodar import ai_budget
 from thodar.db import get_session
 from thodar.messaging import templates
 from thodar.messaging.service import handle_incoming, run_reminders
 from thodar.messaging.sarvam import SarvamClient
 from thodar.messaging.whatsapp import Incoming, WhatsAppClient, parse_webhook
-from thodar.models import Channel, ContactAttempt, Mother, Outcome, ScheduleItem
+from thodar.models import Channel, ContactAttempt, Mother, OutboxMessage, Outcome, ScheduleItem
 from thodar.worklist import Action, build_worklist, effective_due, record_action
 
 router = APIRouter()
-_wa = WhatsAppClient()
+
+
+# Dry-run messages are queued here and written by the request's own session after its work has
+# committed. Writing them from a second connection mid-transaction deadlocks SQLite (seen in testing:
+# 26 reminders took over two minutes waiting on the write lock).
+_pending: list[dict] = []
+_pending_lock = threading.Lock()
+
+
+def _queue(payload: dict) -> None:
+    with _pending_lock:
+        _pending.append(payload)
+
+
+def flush_outbox(session: Session) -> None:
+    with _pending_lock:
+        batch, _pending[:] = list(_pending), []
+    if not batch:
+        return
+    try:
+        session.add_all(OutboxMessage(to=m.get("to", ""), payload=json.dumps(m, ensure_ascii=False)) for m in batch)
+        session.commit()
+    except Exception:  # noqa: BLE001 - the demo outbox must never break message handling
+        session.rollback()
+        logging.getLogger(__name__).exception("could not persist outbox messages")
+
+
+_wa = WhatsAppClient(sink=_queue)
 
 
 def whatsapp() -> WhatsAppClient:
@@ -32,13 +63,16 @@ def whatsapp() -> WhatsAppClient:
 def reminders_run(today: date | None = None, session: Session = Depends(get_session),
                   wa: WhatsAppClient = Depends(whatsapp)):
     run = run_reminders(session, today or date.today(), wa, clinic=get_settings().clinic_name)
+    flush_outbox(session)
     return {**run.__dict__, "dry_run": not wa.enabled}
 
 
 @router.get("/outbox")
-def outbox(wa: WhatsAppClient = Depends(whatsapp)):
-    """Messages that would have been sent (dry-run mode only). Used by the demo UI."""
-    return wa.outbox[-50:]
+def outbox(session: Session = Depends(get_session)):
+    """Messages that would have been sent (dry-run mode only), oldest first. Used by the demo UI."""
+    flush_outbox(session)
+    rows = list(session.scalars(select(OutboxMessage).order_by(OutboxMessage.id.desc()).limit(80)))
+    return [json.loads(r.payload) for r in reversed(rows)]
 
 
 @router.get("/webhooks/whatsapp", response_class=PlainTextResponse)
@@ -57,6 +91,7 @@ async def receive(request: Request, today: date | None = None, session: Session 
         h = handle_incoming(session, msg, today or date.today(), wa)
         handled.append({"item_id": h.item_id, "intent": h.intent.kind, "reason": h.intent.reason,
                         "transcript": h.transcript})
+    flush_outbox(session)
     return {"handled": handled}
 
 
@@ -74,6 +109,7 @@ def voice_preview(item_id: int, today: date | None = None, session: Session = De
     text = templates.reminder(item, mother.name.split()[0], on, get_settings().clinic_name, mother.language)
     text = text.split("?")[0] + "?"  # spoken version: drop the 'tap a button' line
     if text not in _voice_cache:
+        ai_budget.spend("voice preview")
         audio = SarvamClient().speak(text, "ta-IN" if mother.language.value == "ta" else "en-IN", speaker="kavitha")
         if audio is None:
             raise HTTPException(501, "Voice preview needs THODAR_SARVAM_API_KEY.")
@@ -88,7 +124,9 @@ async def demo_voice_note(file: UploadFile, phone: str = Form(...), today: date 
     p = normalize.phone(phone)
     if not p:
         raise HTTPException(422, "invalid phone")
+    ai_budget.spend("voice note")
     h = handle_incoming(session, Incoming(p, "audio"), today or date.today(), wa, audio=await file.read())
+    flush_outbox(session)
     return {"item_id": h.item_id, "intent": h.intent.kind, "reason": h.intent.reason, "transcript": h.transcript}
 
 

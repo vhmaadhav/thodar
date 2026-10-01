@@ -72,6 +72,12 @@ export default function InsightsPage() {
             <div className="tile-label">Median days overdue, open visits</div>
           </div>
           <div className="card tile">
+            <div className="tile-num" style={{ color: "var(--leaf)" }}>{metrics.brought_back_visits}</div>
+            <div className="tile-label">
+              Overdue visits that happened after follow-up ({metrics.brought_back_families} families)
+            </div>
+          </div>
+          <div className="card tile">
             <div className="tile-num">{pct(metrics.families_reached_rate)}</div>
             <div className="tile-label">Reminded families who replied</div>
           </div>

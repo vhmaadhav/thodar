@@ -26,8 +26,10 @@ class Incoming:
 
 
 class WhatsAppClient:
-    def __init__(self, token: str | None = None, phone_number_id: str | None = None):
+    def __init__(self, token: str | None = None, phone_number_id: str | None = None, sink=None):
+        """`sink(payload)` is called for every message in dry-run mode (e.g. to persist the demo outbox)."""
         s = get_settings()
+        self.sink = sink
         self.token = token if token is not None else s.whatsapp_token
         self.phone_number_id = phone_number_id or s.whatsapp_phone_number_id
         self.outbox: list[dict] = []
@@ -39,6 +41,8 @@ class WhatsAppClient:
     def _post(self, payload: dict) -> dict:
         if not self.enabled:
             self.outbox.append(payload)
+            if self.sink:
+                self.sink(payload)
             log.info("whatsapp dry-run to %s", payload.get("to"))
             return {"dry_run": True}
         r = httpx.post(f"{GRAPH}/{self.phone_number_id}/messages", json=payload,

@@ -76,6 +76,8 @@ export interface Metrics {
   missed_rate: number | null;
   on_time_rate: number | null;
   families_reached_rate: number | null;
+  brought_back_visits: number;
+  brought_back_families: number;
 }
 
 export interface Review {

@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     session_days: str = "wed"
     # Send the day's reminders automatically at this time (IST), e.g. "09:00". Empty = manual only.
     auto_reminders_at: str = ""
+    # Max paid AI calls (Sarvam) per day from the demo/upload endpoints; protects credit on a public demo.
+    ai_daily_budget: int = 300
     # Mention Tamil Nadu's Dr Muthulakshmi Reddy maternity-scheme instalments in reminders.
     mrmbs_enabled: bool = True
 

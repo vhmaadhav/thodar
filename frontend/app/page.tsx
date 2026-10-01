@@ -110,6 +110,10 @@ export default function WorklistPage() {
             <div className="tile-label">Unreachable (2+ failed tries)</div>
           </div>
           <div className="card tile">
+            <div className="tile-num" style={{ color: "var(--leaf)" }}>{metrics.brought_back_families}</div>
+            <div className="tile-label">Families brought back into care ({metrics.brought_back_visits} visits)</div>
+          </div>
+          <div className="card tile">
             <div className="tile-num">{pct(metrics.on_time_rate)}</div>
             <div className="tile-label">Completed visits done on time</div>
           </div>

@@ -34,8 +34,11 @@ def seconds_until(at: time, now: datetime) -> float:
 
 
 def run_once(wa: WhatsAppClient, today: date) -> dict:
+    from thodar.api.messaging_routes import flush_outbox  # local import: avoids a cycle at startup
+
     with SessionLocal() as session:
         run = run_reminders(session, today, wa, clinic=get_settings().clinic_name)
+        flush_outbox(session)
     log.info("auto reminders %s: %s sent", today, run.sent)
     return run.__dict__
 
