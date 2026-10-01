@@ -63,12 +63,24 @@ Consequences for our design:
 
 ## Open items
 
-- [ ] Item 4 of the form — prompt not yet seen
 - [ ] Real number from our paediatrician (e.g. staff hours/week chasing missed visits) for the deck
 - [ ] Check name availability (Play Store / GitHub / web)
 - [ ] Build 7-slide deck
 - [ ] Optional clickable prototype for item 7
 
-## Possible prototype stack (if we build one)
+## Planned stack (Item 4)
 
-FastAPI + Postgres · schedule rules in YAML (ANC, PNC, UIP/IAP immunisation) · React/Next.js worklist + mother–baby timeline · WhatsApp sandbox (Twilio/Gupshup) or mocked chat · synthetic data (Synthea + messy CSVs to demo record linking).
+| Layer | Choice | Why |
+|---|---|---|
+| Frontend | Next.js PWA | Nurse worklist + mother–baby timeline; installable, works on low-end phones |
+| Backend | FastAPI (Python) | Same language as data import and record linking |
+| Database | PostgreSQL | Relational: mothers, babies, visits, contacts, audit log |
+| Import | pandas (Excel/CSV), HAPI FHIR | Read the registers and HIS exports teams already keep |
+| Record linking | Splink (probabilistic matching) | Match by RCH ID, ABHA, phone, name, DOB — non-clinical |
+| Schedules | Versioned YAML rules | ANC, PNC, UIP/IAP immunisation; doctor-set intervals |
+| Messaging | WhatsApp Business Cloud API | Two-way reminders, confirm/reschedule replies |
+| Voice | Exotel IVR + Bhashini Tamil TTS | For families without WhatsApp |
+| Identity | ABDM sandbox (ABHA) | Interoperability with national stack |
+| Hosting | AWS Mumbai (ap-south-1) | Data in India; encryption, consent logs (DPDP Act) |
+
+Demo data: synthetic (Synthea + deliberately messy CSVs to show record linking).
