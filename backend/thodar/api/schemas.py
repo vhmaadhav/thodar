@@ -29,6 +29,7 @@ class WorklistRow(BaseModel):
     failed_attempts: int
     last_attempt: AttemptOut | None
     next_step: str
+    benefit: str | None = None  # e.g. 'Rs 12,000 instalment' this visit helps unlock (TN scheme)
 
 
 class ActionIn(BaseModel):
@@ -79,6 +80,8 @@ class ThreadOut(BaseModel):
     language: str
     consent_at: datetime | None
     opted_out: bool
+    family_phone: str | None
+    family_relation: str | None
     pregnancies: list[PregnancyOut]
 
 
@@ -86,6 +89,8 @@ class MotherPatch(BaseModel):
     consent: bool | None = None  # True records consent now; False withdraws it
     language: str | None = None  # ta | en
     phone: str | None = None
+    family_phone: str | None = None  # empty string removes it
+    family_relation: str | None = None
 
 
 class FamilySummary(BaseModel):

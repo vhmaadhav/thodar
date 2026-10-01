@@ -169,6 +169,15 @@ export default function WorklistPage() {
                       <div className="item-label">
                         {r.baby_id ? "Baby · " : ""}
                         {r.label}
+                        {r.benefit && (
+                          <span
+                            className="pill due_today"
+                            style={{ marginLeft: 8 }}
+                            title="Tamil Nadu Dr Muthulakshmi Reddy maternity scheme instalment this visit helps unlock"
+                          >
+                            unlocks {r.benefit}
+                          </span>
+                        )}
                       </div>
                       <div className={`next-step ${FLAG_STEPS.some((f) => r.next_step.startsWith(f)) ? "flag" : ""}`}>
                         Next: {r.next_step}

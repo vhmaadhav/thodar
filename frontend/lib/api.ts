@@ -26,6 +26,7 @@ export interface WorklistRow {
   failed_attempts: number;
   last_attempt: Attempt | null;
   next_step: string;
+  benefit: string | null;
 }
 
 export interface Item {
@@ -53,6 +54,8 @@ export interface Thread {
   language: string;
   consent_at: string | null;
   opted_out: boolean;
+  family_phone: string | null;
+  family_relation: string | null;
   pregnancies: {
     id: number;
     lmp: string | null;

@@ -47,6 +47,19 @@ Sarvam is the event partner, but each job uses whatever works best on Tamil clin
 | Tamil reminder voice | Reviewers: Bulbul clearer on Indian accents; ElevenLabs more expressive. Clarity matters for reminders. | Bulbul v3. |
 | Reply understanding | Rules are auditable; LLM only as a constrained fallback. | Rules, then Sarvam-105B limited to scheduling labels. |
 
+## Improvement research (1 Oct 2026) and what we built from it
+
+| Evidence | Built |
+|---|---|
+| Haryana immunisation RCT (Banerjee, Duflo et al., Econometrica 2025; J-PAL): reminders about the *next* vaccine + community ambassadors + incentives that grow along the schedule raised measles vaccination ~55%; reminders + ambassadors alone were cheaper per child than status quo | Reminders name the doses (e.g. "OPV-2, Penta-2, RVV-2"); VHN escalation stays the ambassador path |
+| TN PHCs run ANC clinic and immunisation on a fixed day, Wednesday (NHM TN; The Hindu) | Reminders propose the next clinic session day (`THODAR_SESSION_DAYS`, default `wed`) |
+| Transport and time are top barriers to PNC/immunisation | **One trip**: one message per family covering the mother's and baby's next visits together |
+| Fewer than a third of new mothers take part in care decisions; ~70% of decisions made by one person, often father or grandmother (PLOS One 2025, 551 dyads) | Optional **family contact** (with consent) gets the same reminders and can reply |
+| Dr Muthulakshmi Reddy scheme: Rs 2,000 at registration, Rs 4,000 at the 7th-month ANC, Rs 12,000 after delivery + BCG | Reminders and worklist mention the instalment a visit helps unlock (factual, "helps you become eligible") |
+| Catch-up dosing needs minimum intervals; planning it is clinical | A trip includes only the next visit of each sequence; the message says the doctor plans the rest |
+
+Deadline note: Round 1 idea submission extended to 3 Oct 2026 (organiser post).
+
 ## Research notes
 
 **India, NFHS-6 (2023-24)** — PIB, 29 May 2026

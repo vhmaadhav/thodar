@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Shared secret the Sarvam voice agent sends when it calls Thodar's tool endpoints.
     voice_tool_key: str = "thodar-dev-tool-key"
     clinic_name: str = "the clinic"
+    # Days the clinic runs ANC / immunisation sessions (TN PHCs: Wednesday). Comma-separated.
+    session_days: str = "wed"
+    # Mention Tamil Nadu's Dr Muthulakshmi Reddy maternity-scheme instalments in reminders.
+    mrmbs_enabled: bool = True
 
     # Days after a due date before an item counts as overdue.
     default_grace_days: int = 0

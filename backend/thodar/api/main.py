@@ -37,6 +37,7 @@ from thodar.importer import (
     read_table,
 )
 from thodar import normalize
+from thodar.benefits import benefit_for
 from thodar.draft_checks import check_rows
 from thodar.models import Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
@@ -123,6 +124,7 @@ def worklist(today: date | None = None, owner: str | None = None, horizon_days: 
             owner=r.item.owner, bucket=r.bucket, due=r.effective_due, days_overdue=r.days_overdue,
             failed_attempts=r.failed_attempts, last_attempt=_attempt(r.last_attempt) if r.last_attempt else None,
             next_step=r.next_step,
+            benefit=f"₹{b.amount:,} instalment" if (b := benefit_for(r.item.code)) else None,
         )
         for r in rows
     ]
@@ -156,7 +158,8 @@ def thread(mother_id: int, session: Session = Depends(get_session)):
                           items=[_item(i) for i in items if i.baby_id == b.id]) for b in p.babies]
         pregnancies.append(PregnancyOut(id=p.id, lmp=p.lmp, delivery_date=p.delivery_date, items=mine, babies=babies))
     return ThreadOut(mother_id=m.id, name=m.name, phone=m.phone, rch_id=m.rch_id, village=m.village,
-                     language=m.language, consent_at=m.consent_at, opted_out=m.opted_out, pregnancies=pregnancies)
+                     language=m.language, consent_at=m.consent_at, opted_out=m.opted_out,
+                     family_phone=m.family_phone, family_relation=m.family_relation, pregnancies=pregnancies)
 
 
 @app.patch("/mothers/{mother_id}")
@@ -176,9 +179,16 @@ def update_mother(mother_id: int, body: MotherPatch, session: Session = Depends(
         if body.phone and not cleaned:
             raise HTTPException(422, "not a valid Indian mobile number")
         m.phone = cleaned
+    if body.family_phone is not None:
+        cleaned = normalize.phone(body.family_phone)
+        if body.family_phone and not cleaned:
+            raise HTTPException(422, "family contact is not a valid Indian mobile number")
+        m.family_phone = cleaned
+    if body.family_relation is not None:
+        m.family_relation = body.family_relation or None
     session.commit()
     return {"ok": True, "consent_at": m.consent_at, "opted_out": m.opted_out, "language": m.language,
-            "phone": m.phone}
+            "phone": m.phone, "family_phone": m.family_phone, "family_relation": m.family_relation}
 
 
 @app.get("/families", response_model=list[FamilySummary])

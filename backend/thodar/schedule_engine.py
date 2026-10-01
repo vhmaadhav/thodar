@@ -28,6 +28,7 @@ class Rule:
     due_offset_days: int
     window_end_days: int
     expires_after_days: int = 0
+    includes: tuple[str, ...] = ()
 
 
 @lru_cache
@@ -45,9 +46,15 @@ def load_rules(name: str) -> tuple[Rule, ...]:
                 due_offset_days=item["due_offset_days"],
                 window_end_days=item["window_end_days"],
                 expires_after_days=item.get("expires_after_days", doc.get("expires_after_days", 0)),
+                includes=tuple(item.get("includes", ())),
             )
         )
     return tuple(rules)
+
+
+def doses_for(code: str) -> tuple[str, ...]:
+    """The vaccines given at a UIP visit, e.g. ('OPV-2', 'Penta-2', 'RVV-2'); empty for other visits."""
+    return next((r.includes for r in load_rules("uip") if r.code == code), ())
 
 
 def _anc_rules(pregnancy: Pregnancy) -> list[Rule]:

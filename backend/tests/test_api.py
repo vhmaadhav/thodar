@@ -106,3 +106,11 @@ def test_consent_language_and_phone(client):
     out = client.patch("/mothers/1", json={"consent": False}).json()
     assert out["opted_out"] and out["consent_at"] is None
     assert client.patch("/mothers/1", json={"phone": "123"}).status_code == 422
+
+
+def test_family_contact_can_be_set_and_cleared(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    out = client.patch("/mothers/1", json={"family_phone": "90000 00999", "family_relation": "husband"}).json()
+    assert out["family_phone"] == "9000000999" and out["family_relation"] == "husband"
+    assert client.get("/mothers/1/thread").json()["family_relation"] == "husband"
+    assert client.patch("/mothers/1", json={"family_phone": ""}).json()["family_phone"] is None

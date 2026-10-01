@@ -119,3 +119,64 @@ def test_second_lock_escalates_but_never_deescalates():
     filled = second_lock(unknown, (Kind.reschedule, "2026-10-09"))
     assert filled.kind is Kind.reschedule and filled.on == date(2026, 10, 9)
     assert second_lock(rules_resched, None) is rules_resched  # offline: rules alone
+
+
+def test_one_trip_bundle_on_session_day_with_doses_and_benefit(session):
+    # Baby born 7 days ago: mother's PNC day 7 and baby's newborn check + birth doses all due.
+    m = _family(session)
+    wa = WhatsAppClient(token="")
+    run = run_reminders(session, TODAY, wa)
+    assert run.sent == 1 and len(wa.outbox) == 1  # one message for the whole family
+    body = wa.outbox[0]["interactive"]["body"]["text"]
+    assert "புதன்கிழமை 07-10-2026" in body  # next Wednesday session after Thursday 1 Oct
+    assert body.count("•") >= 3  # mother and baby visits together
+    assert "BCG" in body and "₹12,000" in body  # names the doses and the scheme instalment
+    confirm_id = wa.outbox[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    assert confirm_id.startswith("confirm:2026-10-07:")
+
+    h = handle_incoming(session, Incoming(m.phone, "button", button_id=confirm_id), TODAY, wa)
+    rows = [r for r in build_worklist(session, TODAY, horizon_days=10) if r.mother.id == m.id]
+    assert all(r.item.status is ItemStatus.confirmed for r in rows if r.item.id in run.item_ids)
+    assert {r.effective_due for r in rows if r.item.id in run.item_ids} == {date(2026, 10, 7)}
+    assert "07-10-2026" in h.reply
+
+
+def test_family_contact_gets_the_reminder_and_can_reply(session):
+    m = _family(session)
+    m.family_phone, m.family_relation = "9000000999", "husband"
+    session.commit()
+    wa = WhatsAppClient(token="")
+    run_reminders(session, TODAY, wa)
+    assert sorted(x["to"] for x in wa.outbox) == ["919000000001", "919000000999"]
+    h = handle_incoming(session, Incoming("9000000999", "text", text="ok varen"), TODAY, wa,
+                        sarvam=SarvamClient(api_key=""))
+    assert h.intent.kind is Kind.confirm
+    assert wa.outbox[-1]["to"] == "919000000999"  # the answer goes to whoever wrote
+
+
+def test_buttons_from_another_family_are_ignored(session):
+    _family(session)
+    other = Mother(name="Selvi T", phone="9000000002", consent_at=datetime(2026, 9, 1))
+    session.add(other)
+    session.commit()
+    wa = WhatsAppClient(token="")
+    run_reminders(session, TODAY, wa)
+    ids = wa.outbox[0]["interactive"]["action"]["buttons"][0]["reply"]["id"]
+    h = handle_incoming(session, Incoming("9000000002", "button", button_id=ids), TODAY, wa)
+    assert h.item_id is None
+
+
+def test_bundle_never_stacks_doses_from_one_sequence(session):
+    # Baby 110 days old with every vaccine visit missed: only the earliest goes in the trip.
+    m = Mother(name="Anitha P", phone="9000000051", consent_at=datetime(2026, 9, 1))
+    p = Pregnancy(mother=m, delivery_date=TODAY - timedelta(days=110))
+    session.add_all([m, p, Baby(pregnancy=p, dob=p.delivery_date)])
+    session.flush()
+    generate_for_pregnancy(session, p)
+    session.commit()
+    wa = WhatsAppClient(token="")
+    run_reminders(session, TODAY, wa)
+    body = wa.outbox[0]["interactive"]["body"]["text"]
+    assert "BCG" in body and "Penta" not in body  # birth doses first; later doses need spacing
+    assert "மருத்துவர்" in body  # tells the family the doctor plans the rest
+    assert "மருத்துவமனையில்" in body

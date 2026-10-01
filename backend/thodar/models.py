@@ -62,6 +62,10 @@ class Mother(Base):
     village: Mapped[str | None] = mapped_column(String(120))
     language: Mapped[Language] = mapped_column(Enum(Language), default=Language.ta)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Often the husband or a grandmother decides on care (fewer than a third of new mothers do;
+    # PLOS One 2025). With consent, this number gets the same reminders and may reply.
+    family_phone: Mapped[str | None] = mapped_column(String(20), index=True)
+    family_relation: Mapped[str | None] = mapped_column(String(40))
     opted_out: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

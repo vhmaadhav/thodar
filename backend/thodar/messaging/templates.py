@@ -43,10 +43,8 @@ CLINIC_DEFAULT = {Language.en: "the clinic", Language.ta: "மருத்து
 
 def reminder(item: ScheduleItem, name: str, on: date, clinic: str, lang: Language) -> str:
     what = WHAT[lang][_kind(item)]
-    if clinic == CLINIC_DEFAULT[Language.en]:
-        clinic = CLINIC_DEFAULT[lang]
     if lang is Language.ta:
-        return (f"வணக்கம் {name}! {what} {_day(on)} அன்று {clinic}-ல் உள்ளது. "
+        return (f"வணக்கம் {name}! {what} {_day(on)} அன்று {_at_clinic_ta(clinic)} உள்ளது. "
                 f"வர முடியுமா? கீழே உள்ள பொத்தானை அழுத்தவும் அல்லது பதில் அனுப்பவும்.")
     return (f"Hello {name}! {what.capitalize()} is due on {_day(on)} at {clinic}. "
             f"Can you come? Tap a button below or reply.")
@@ -76,3 +74,38 @@ def ack_staff(lang: Language) -> str:
 def ack_stop(lang: Language) -> str:
     return ("சரி, இனி நினைவூட்டல்கள் அனுப்பமாட்டோம்." if lang is Language.ta
             else "Okay, we will not send further reminders.")
+
+
+DAY_TA = ["திங்கள்", "செவ்வாய்", "புதன்", "வியாழன்", "வெள்ளி", "சனி", "ஞாயிறு"]
+
+
+def visit_line(item: ScheduleItem, lang: Language, doses: tuple[str, ...] = ()) -> str:
+    """'your baby's vaccination (OPV-2, Penta-2, RVV-2)': naming the doses is a scheduling fact."""
+    what = WHAT[lang][_kind(item)]
+    return f"{what} ({', '.join(doses)})" if doses else what
+
+
+def _at_clinic_ta(clinic: str) -> str:
+    return "மருத்துவமனையில்" if clinic in (CLINIC_DEFAULT[Language.en], CLINIC_DEFAULT[Language.ta]) else f"{clinic}-ல்"
+
+
+def bundle_reminder(lines: list[str], benefits: list[str], name: str, session_day: date, clinic: str,
+                    lang: Language, more_to_plan: bool = False) -> str:
+    """One message for everything a family has due, on the clinic's next session day: one trip."""
+    bullets = "\n".join(f"• {x}" for x in lines)
+    if lang is Language.ta:
+        day = f"{DAY_TA[session_day.weekday()]}கிழமை {_day(session_day)}"
+        body = f"வணக்கம் {name}! {day} அன்று {_at_clinic_ta(clinic)} ஒரே வருகையில்:\n{bullets}"
+        if more_to_plan:
+            body += "\n(தவறிய மற்ற தடுப்பூசிகள்/பரிசோதனைகளை மருத்துவர் அன்று திட்டமிடுவார்.)"
+        if benefits:
+            body += "\n\nஇந்த வருகை " + ", ".join(benefits) + " பெற உதவும்."
+        return body + "\n\nவர முடியுமா? கீழே உள்ள பொத்தானை அழுத்தவும் அல்லது பதில் அனுப்பவும்."
+    if clinic == CLINIC_DEFAULT[Language.ta]:
+        clinic = CLINIC_DEFAULT[Language.en]
+    body = f"Hello {name}! On {session_day:%A} {_day(session_day)} at {clinic}, in one visit:\n{bullets}"
+    if more_to_plan:
+        body += "\n(The doctor will plan any other missed doses or check-ups on the day.)"
+    if benefits:
+        body += "\n\nThis visit also helps you become eligible for " + ", ".join(benefits) + "."
+    return body + "\n\nCan you come? Tap a button below or reply."

@@ -1,7 +1,7 @@
 """Sends reminders and turns families' replies into worklist updates."""
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,7 +20,10 @@ from thodar.models import (
     Outcome,
     ScheduleItem,
 )
-from thodar.schedule_engine import expire_items
+from thodar.benefits import benefit_for
+from thodar.config import get_settings
+from thodar.schedule_engine import doses_for, expire_items
+from thodar.sessions import next_session, parse_weekdays
 from thodar.worklist import Action, build_worklist, effective_due, record_action
 
 CLINIC_NAME = "the clinic"
@@ -36,16 +39,30 @@ class ReminderRun:
 
 
 def run_reminders(session: Session, today: date, wa: WhatsAppClient, clinic: str = CLINIC_NAME,
-                  horizon_days: int = 1) -> ReminderRun:
-    """At most one WhatsApp reminder per family per run, for its most overdue item awaiting one."""
+                  horizon_days: int = 7) -> ReminderRun:
+    """One WhatsApp message per family per run, bundling everything the mother and baby have due
+    (overdue, or due within `horizon_days`) into a single trip on the clinic's next session day."""
     run = ReminderRun()
     expire_items(session, today)
-    seen: set[int] = set()
+    weekdays = parse_weekdays(get_settings().session_days)
+    families: dict[int, list] = {}
     for row in build_worklist(session, today, horizon_days=horizon_days):
-        if row.next_step != "Send WhatsApp reminder" or row.mother.id in seen:
-            continue
-        seen.add(row.mother.id)
-        m = row.mother
+        if row.next_step == "Send WhatsApp reminder":
+            families.setdefault(row.mother.id, []).append(row)
+    for family_rows in families.values():
+        # One trip can only hold the NEXT visit of each sequence (the mother's ANC/PNC, the baby's checks,
+        # the baby's vaccines). Later doses need spacing after earlier ones, and planning a catch-up
+        # schedule is the doctor's call, so the rest wait and the message says so.
+        rows, held_back = [], False
+        seen: set[tuple] = set()
+        for r in sorted(family_rows, key=lambda r: r.item.due_date):
+            key = (r.item.schedule, r.item.baby_id, r.item.code.split("-")[0])
+            if key in seen:
+                held_back = True
+                continue
+            seen.add(key)
+            rows.append(r)
+        m = rows[0].mother
         if not m.phone:
             run.skipped_no_phone += 1
             continue
@@ -55,13 +72,22 @@ def run_reminders(session: Session, today: date, wa: WhatsAppClient, clinic: str
         if not m.consent_at:
             run.skipped_no_consent += 1
             continue
-        name = m.name.split()[0]
-        body = templates.reminder(row.item, name, max(row.effective_due, today), clinic, m.language)
+        target = max(today + timedelta(days=1), min(r.effective_due for r in rows))
+        day = next_session(target, weekdays)
+        lines = [templates.visit_line(r.item, m.language, doses_for(r.item.code)) for r in rows]
+        benefits = [getattr(b, m.language.value) for r in rows if (b := benefit_for(r.item.code))]
+        body = templates.bundle_reminder(lines, benefits, m.name.split()[0], day, clinic, m.language,
+                                         more_to_plan=held_back)
+        ids = ",".join(str(r.item.id) for r in rows)
         yes, change = templates.BUTTONS[m.language]
-        wa.send_buttons(m.phone, body, [(f"confirm:{row.item.id}", yes), (f"reschedule:{row.item.id}", change)])
-        record_action(session, row.item, Action.reminder_sent, actor="thodar", channel=Channel.whatsapp)
+        buttons = [(f"confirm:{day.isoformat()}:{ids}", yes), (f"reschedule:{ids}", change)]
+        for phone in filter(None, [m.phone, m.family_phone]):
+            wa.send_buttons(phone, body, buttons)
+        for r in rows:
+            record_action(session, r.item, Action.reminder_sent, actor="thodar", channel=Channel.whatsapp,
+                          note=f"proposed {day:%a %d %b}")
+            run.item_ids.append(r.item.id)
         run.sent += 1
-        run.item_ids.append(row.item.id)
     session.commit()
     return run
 
@@ -109,19 +135,21 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
                     audio: bytes | None = None) -> Handled:
     """`audio` lets a caller pass voice-note bytes directly (demo upload) instead of a WhatsApp media id."""
     sarvam = sarvam or SarvamClient()
-    mother = session.scalars(select(Mother).where(Mother.phone == msg.phone)).first()
+    mother = session.scalars(select(Mother).where(
+        (Mother.phone == msg.phone) | (Mother.family_phone == msg.phone))).first()
     if mother is None:
         return Handled(None, Intent(Kind.needs_staff, reason="unknown number"), None)
     lang = mother.language
 
     item: ScheduleItem | None = None
+    bundle: list[ScheduleItem] = []
     transcript = None
     if msg.kind == "button" and msg.button_id and (parsed := from_button(msg.button_id)):
-        kind, item_id = parsed
-        item = session.get(ScheduleItem, item_id)
-        if item is not None and item.mother_id != mother.id:
-            item = None  # a button from someone else's message: ignore the id
-        intent = Intent(kind, reason="button")
+        kind, item_ids, session_day = parsed
+        # Ignore ids that are not this family's (a forwarded or tampered button).
+        bundle = [i for i in (session.get(ScheduleItem, x) for x in item_ids) if i and i.mother_id == mother.id]
+        item = bundle[0] if bundle else None
+        intent = Intent(kind, on=session_day, reason="button")
     else:
         text = msg.text
         if msg.kind == "audio":
@@ -145,15 +173,20 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
     elif item is None:
         reply = templates.ack_staff(lang)
     elif intent.kind is Kind.confirm:
-        record_action(session, item, Action.confirm, note=note, actor="family", channel=Channel.whatsapp)
-        reply = templates.ack_confirm(max(effective_due(item), today), lang)
-    elif intent.kind is Kind.reschedule and intent.on:
-        record_action(session, item, Action.reschedule, on=intent.on, note=note, actor="family",
-                      channel=Channel.whatsapp)
+        for it in bundle or [item]:
+            if intent.on and effective_due(it) != intent.on:
+                it.rescheduled_to = intent.on  # they agreed to come on the proposed session day
+            record_action(session, it, Action.confirm, note=note, actor="family", channel=Channel.whatsapp)
+        reply = templates.ack_confirm(intent.on or max(effective_due(item), today), lang)
+    elif intent.kind is Kind.reschedule and intent.on and msg.kind != "button":
+        for it in bundle or [item]:
+            record_action(session, it, Action.reschedule, on=intent.on, note=note, actor="family",
+                          channel=Channel.whatsapp)
         reply = templates.ack_reschedule(intent.on, lang)
     elif intent.kind is Kind.reschedule:
-        session.add(ContactAttempt(item=item, channel=Channel.whatsapp, outcome=Outcome.reschedule,
-                                   note=note or "asked to change the date", actor="family", at=datetime.now()))
+        for it in bundle or [item]:
+            session.add(ContactAttempt(item=it, channel=Channel.whatsapp, outcome=Outcome.reschedule,
+                                       note=note or "asked to change the date", actor="family", at=datetime.now()))
         reply = templates.ack_reschedule(None, lang)
     elif intent.kind is Kind.moved:
         record_action(session, item, Action.moved, note=note, actor="family", channel=Channel.whatsapp)
@@ -167,8 +200,8 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
         reply = templates.ack_staff(lang)
 
     session.commit()
-    if reply and mother.phone:
-        wa.send_text(mother.phone, reply)
+    if reply:
+        wa.send_text(msg.phone, reply)  # answer whoever wrote: the mother or the family contact
     return Handled(item.id if item else None, intent, reply, transcript)
 
 

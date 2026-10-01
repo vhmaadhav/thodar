@@ -118,9 +118,19 @@ def classify(text: str, today: date) -> Intent:
     return Intent(Kind.needs_staff, reason="not understood by rules")
 
 
-def from_button(payload: str) -> tuple[Kind, int] | None:
-    """WhatsApp quick-reply ids look like 'confirm:42' or 'reschedule:42'."""
-    kind, _, item_id = payload.partition(":")
-    if kind in (Kind.confirm, Kind.reschedule) and item_id.isdigit():
-        return Kind(kind), int(item_id)
-    return None
+def from_button(payload: str) -> tuple[Kind, list[int], date | None] | None:
+    """Quick-reply ids: 'confirm:2026-10-08:41,42' (come on that session day for items 41 and 42),
+    'reschedule:41,42', or the older single-item 'confirm:42'."""
+    parts = payload.split(":")
+    if len(parts) < 2 or parts[0] not in (Kind.confirm, Kind.reschedule):
+        return None
+    day = None
+    if len(parts) == 3:
+        try:
+            day = date.fromisoformat(parts[1])
+        except ValueError:
+            return None
+    ids = parts[-1].split(",")
+    if not ids or not all(i.isdigit() for i in ids):
+        return None
+    return Kind(parts[0]), [int(i) for i in ids], day
