@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from thodar.api.messaging_routes import router as messaging_router
 from thodar.api.schemas import (
     ActionIn,
     AttemptOut,
@@ -42,6 +43,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="Thodar", version="0.1.0", lifespan=lifespan,
               description="One follow-up thread for every mother and baby. Assistive, not clinical.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.include_router(messaging_router)
 
 IMPORTERS = {
     "anc": import_anc_register,

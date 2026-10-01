@@ -59,3 +59,30 @@ def test_import_worklist_act_and_thread(client):
 
 def test_unknown_import_source(client):
     assert client.post("/import/lab", files={"file": ("x.csv", "a\n1\n")}).status_code == 404
+
+
+def test_whatsapp_webhook_and_voice_tools(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    client.post("/import/delivery", files={"file": ("del.csv", DELIVERY)})
+
+    # Verification handshake
+    r = client.get("/webhooks/whatsapp", params={"hub.mode": "subscribe", "hub.verify_token": "thodar-dev",
+                                                 "hub.challenge": "42"})
+    assert r.text == "42"
+
+    # Voice agent: no key, no access
+    assert client.post("/voice/tools/lookup", json={"phone": "9000000001"}).status_code == 401
+    h = {"X-Thodar-Tool-Key": "thodar-dev-tool-key"}
+    due = client.post("/voice/tools/lookup", json={"phone": "+91 90000 00001", "today": str(TODAY)},
+                      headers=h).json()
+    assert due["found"] and due["due"]["item_id"]
+    sat = (TODAY + timedelta(days=2)).isoformat()
+    assert client.post("/voice/tools/update", json={"item_id": due["due"]["item_id"], "outcome": "reschedule",
+                                                    "new_date": sat, "note": "will come Saturday"},
+                       headers=h).json()["ok"]
+
+    # Family texts in with a symptom: routed to staff
+    body = {"entry": [{"changes": [{"value": {"messages": [
+        {"from": "919000000001", "type": "text", "text": {"body": "baby has fever"}}]}}]}]}
+    handled = client.post("/webhooks/whatsapp", params={"today": str(TODAY)}, json=body).json()["handled"]
+    assert handled[0]["intent"] == "needs_staff"

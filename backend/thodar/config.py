@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_verify_token: str = "thodar-dev"
 
+    # Shared secret the Sarvam voice agent sends when it calls Thodar's tool endpoints.
+    voice_tool_key: str = "thodar-dev-tool-key"
+    clinic_name: str = "the clinic"
+
     # Days after a due date before an item counts as overdue.
     default_grace_days: int = 0
 
