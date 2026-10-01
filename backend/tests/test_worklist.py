@@ -77,3 +77,12 @@ def test_family_waiting_for_staff_goes_first(session):
     record_action(session, meena_item, Action.notify_doctor, note="family asked a question", actor="family")
     session.flush()
     assert build_worklist(session, TODAY)[0].mother.name == "Meena K"
+
+
+def test_vhn_visit_request_is_shown_not_rerequested(session):
+    _delivered(session, "Revathi K", 10, "9000000007")
+    row = next(r for r in build_worklist(session, TODAY) if r.item.code == "pnc-d7")
+    record_action(session, row.item, Action.request_visit)
+    session.flush()
+    row = next(r for r in build_worklist(session, TODAY) if r.item.code == "pnc-d7")
+    assert row.next_step.startswith("VHN visit requested")

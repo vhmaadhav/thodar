@@ -1,7 +1,7 @@
 import io
 import json
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 from statistics import median
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
@@ -34,7 +34,7 @@ from thodar.importer import (
     import_immunisation_register,
     read_table,
 )
-from thodar.models import ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar.models import Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
@@ -150,6 +150,27 @@ def families(q: str | None = None, today: date | None = None, session: Session =
     return out
 
 
+@app.get("/handovers")
+def handovers(days: int = 14, today: date | None = None, session: Session = Depends(get_session)):
+    """Babies born recently: the obstetrics-to-paediatrics handover, with what paediatrics now owns."""
+    today = today or date.today()
+    out = []
+    stmt = select(Baby).where(Baby.dob >= today - timedelta(days=days), Baby.dob <= today).order_by(Baby.dob.desc())
+    for b in session.scalars(stmt):
+        mother = b.pregnancy.mother
+        items = list(session.scalars(select(ScheduleItem).where(ScheduleItem.baby_id == b.id)
+                                     .order_by(ScheduleItem.due_date)))
+        upcoming = next((i for i in items if i.status in (ItemStatus.pending, ItemStatus.confirmed)), None)
+        out.append({
+            "baby_id": b.id, "mother_id": mother.id, "name": b.name or f"Baby of {mother.name}",
+            "dob": b.dob, "days_old": (today - b.dob).days, "phone": mother.phone,
+            "items_created": len(items),
+            "done": sum(i.status is ItemStatus.done for i in items),
+            "next": {"label": upcoming.label, "due": upcoming.due_date} if upcoming else None,
+        })
+    return out
+
+
 @app.get("/insights/funnel", response_model=list[FunnelStep])
 def funnel(today: date | None = None, session: Session = Depends(get_session)):
     """Where families drop off, visit by visit. Counts only; no individual is scored."""
@@ -244,7 +265,8 @@ def metrics(today: date | None = None, session: Session = Depends(get_session)):
     done = list(session.scalars(select(ScheduleItem).where(ScheduleItem.status == ItemStatus.done)))
     on_time = [i for i in done if i.completed_on and i.completed_on <= i.window_end]
 
-    reminded = set(session.scalars(select(ContactAttempt.item_id).where(ContactAttempt.outcome == Outcome.sent)))
+    reminded = set(session.scalars(select(ContactAttempt.item_id).where(
+        ContactAttempt.outcome == Outcome.sent, ContactAttempt.channel.in_([Channel.whatsapp, Channel.voice]))))
     replied = set(session.scalars(select(ContactAttempt.item_id).where(
         ContactAttempt.outcome.in_([Outcome.confirmed, Outcome.reschedule, Outcome.moved, Outcome.needs_staff]))))
 

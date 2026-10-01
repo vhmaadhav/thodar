@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import Handovers from "@/components/Handovers";
 import PhoneSimulator from "@/components/PhoneSimulator";
 import {
   api,
@@ -137,6 +138,8 @@ export default function WorklistPage() {
 
       {error && <p className="notice error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
+
+      {owner !== "obstetrics" && <Handovers tick={tick} />}
 
       <div className="layout">
         <section className="card">

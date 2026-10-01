@@ -72,7 +72,8 @@ def _latest_reminded_item(session: Session, mother: Mother) -> ScheduleItem | No
         .join(ContactAttempt)
         .where(ScheduleItem.mother_id == mother.id,
                ScheduleItem.status.in_([ItemStatus.pending, ItemStatus.confirmed]),
-               ContactAttempt.outcome == Outcome.sent)
+               ContactAttempt.outcome == Outcome.sent,
+               ContactAttempt.channel.in_([Channel.whatsapp, Channel.voice]))
         .order_by(ContactAttempt.at.desc(), ContactAttempt.id.desc())
     )
     return session.scalars(stmt).first()

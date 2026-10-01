@@ -78,6 +78,8 @@ def suggest_next_step(item: ScheduleItem, failed: int, last: ContactAttempt | No
         return f"Booked {item.rescheduled_to:%a %d %b}"
     if last and last.outcome is Outcome.reschedule:
         return "Call to book a new date"
+    if last and last.channel is Channel.visit:
+        return f"VHN visit requested {last.at:%d %b}"
     if failed >= UNREACHABLE_AFTER:
         return "Ask VHN to visit"
     if failed == 1 or (last and last.channel is Channel.whatsapp and last.outcome is Outcome.sent):
