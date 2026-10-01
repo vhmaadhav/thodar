@@ -90,6 +90,17 @@ class FamilySummary(BaseModel):
     missed: int
 
 
+class FunnelStep(BaseModel):
+    code: str
+    label: str
+    schedule: str
+    due: int  # items whose due date has arrived
+    done: int
+    done_on_time: int
+    missed: int
+    open: int  # still pending (overdue or due today)
+
+
 class ReviewOut(BaseModel):
     id: int
     source: str

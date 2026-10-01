@@ -13,6 +13,7 @@ from thodar.api.messaging_routes import router as messaging_router
 from thodar.api.schemas import (
     ActionIn,
     FamilySummary,
+    FunnelStep,
     AttemptOut,
     BabyOut,
     ItemOut,
@@ -31,7 +32,7 @@ from thodar.importer import (
     read_table,
 )
 from thodar.models import ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
-from thodar.schedule_engine import expire_items
+from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
 
@@ -144,6 +145,32 @@ def families(q: str | None = None, today: date | None = None, session: Session =
             open_items=counts.get(ItemStatus.pending, 0) + counts.get(ItemStatus.confirmed, 0),
             missed=counts.get(ItemStatus.missed, 0)))
     return out
+
+
+@app.get("/insights/funnel", response_model=list[FunnelStep])
+def funnel(today: date | None = None, session: Session = Depends(get_session)):
+    """Where families drop off, visit by visit. Counts only; no individual is scored."""
+    today = today or date.today()
+    expire_items(session, today)
+    session.commit()
+    order = [r.code for name in ("anc", "pnc", "uip") for r in load_rules(name)]
+    labels = {r.code: (r.label, r.schedule) for name in ("anc", "pnc", "uip") for r in load_rules(name)}
+    steps = {c: FunnelStep(code=c, label=labels[c][0], schedule=labels[c][1], due=0, done=0, done_on_time=0,
+                           missed=0, open=0) for c in order}
+    stmt = select(ScheduleItem).where(ScheduleItem.due_date <= today, ScheduleItem.status != ItemStatus.cancelled)
+    for i in session.scalars(stmt):
+        s = steps.get(i.code)
+        if s is None:
+            continue
+        s.due += 1
+        if i.status is ItemStatus.done:
+            s.done += 1
+            s.done_on_time += bool(i.completed_on and i.completed_on <= i.window_end)
+        elif i.status is ItemStatus.missed:
+            s.missed += 1
+        else:
+            s.open += 1
+    return [steps[c] for c in order]
 
 
 @app.post("/import/{source}")
