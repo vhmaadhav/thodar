@@ -1,0 +1,32 @@
+<section id="build" data-transition="magic" style="background:#1E2B2A;color:#F4EFE4;font-family:'IBM Plex Sans', Arial, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:32px">
+<div style="position:absolute;left:0px;top:70px;width:1920px;height:3px;background:#D9A441"></div>
+<x-shape id="knot" kind="ellipse" style="position:absolute;left:1534px;top:60px;width:24px;height:24px;background:#D9A441"></x-shape>
+<p style="font-size:24px;letter-spacing:3px;text-transform:uppercase;color:#D9A441;font-weight:600">Feasibility · built on Sarvam AI, the event's technology partner</p>
+<h2 style="font-family:'Fraunces', Georgia, serif;font-size:72px;font-weight:600;line-height:1.1;color:#F4EFE4">AI at the edges. Rules at the core.</h2>
+<div style="display:flex;flex-direction:row;gap:16px;align-items:center">
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#2A3A38;padding:32px;border-radius:16px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#D9A441;font-weight:600">AI · reads paper</p>
+<h3 style="font-size:32px;font-weight:600;line-height:1.25;color:#F4EFE4">Sarvam Vision</h3>
+<p style="font-size:24px;line-height:1.45;color:#C9C3B4">Photos of registers and mother–child cards become rows. A nurse confirms every row before it is saved.</p>
+</div>
+<x-shape kind="arrow-right" style="width:36px;height:20px;background:#D9A441"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#F4EFE4;padding:32px;border-radius:16px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#A63D24;font-weight:600">Fixed rules · no AI</p>
+<h3 style="font-size:32px;font-weight:600;line-height:1.25;color:#1E2B2A">Thodar core</h3>
+<p style="font-size:24px;line-height:1.45;color:#4B524D">ANC, PNC and UIP schedules as versioned rules. Splink record linking. FastAPI, PostgreSQL, Next.js web app.</p>
+</div>
+<x-shape kind="arrow-right" style="width:36px;height:20px;background:#D9A441"></x-shape>
+<div style="flex:1;align-self:stretch;display:flex;flex-direction:column;gap:12px;background:#2A3A38;padding:32px;border-radius:16px">
+<p style="font-size:24px;letter-spacing:2px;text-transform:uppercase;color:#D9A441;font-weight:600">AI · talks to families</p>
+<h3 style="font-size:32px;font-weight:600;line-height:1.25;color:#F4EFE4">Sarvam Voice Agents + WhatsApp</h3>
+<p style="font-size:24px;line-height:1.45;color:#C9C3B4">Saaras v3, Sarvam-105B and Bulbul v3 on Exotel. WhatsApp Cloud API buttons; Saaras transcribes voice notes.</p>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:6px;border-top:2px solid #D9A441;padding:20px 0px 0px 0px"><p style="font-family:'Fraunces', Georgia, serif;font-size:44px;font-weight:600;color:#D9A441">≈ ₹2–3</p><p style="font-size:24px;line-height:1.4;color:#C9C3B4">per due visit: two WhatsApp nudges plus one short call (estimate at list prices)</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;border-top:2px solid #D9A441;padding:20px 0px 0px 0px"><p style="font-family:'Fraunces', Georgia, serif;font-size:44px;font-weight:600;color:#D9A441">In India</p><p style="font-size:24px;line-height:1.4;color:#C9C3B4">AWS Mumbai plus Sarvam's India-hosted models. Consent and opt-out under the DPDP Act.</p></div>
+<div style="display:flex;flex-direction:column;gap:6px;border-top:2px solid #D9A441;padding:20px 0px 0px 0px"><p style="font-family:'Fraunces', Georgia, serif;font-size:44px;font-weight:600;color:#D9A441">5 weeks</p><p style="font-size:24px;line-height:1.4;color:#C9C3B4">to a working prototype on synthetic data, one module per week (plan below).</p></div>
+</div>
+<div style="position:absolute;left:128px;right:128px;bottom:64px;height:34px;display:flex;flex-direction:row;justify-content:space-between"><p style="font-size:24px;color:#A9A493">W1 data + rules · W2 import + linking · W3 worklist + WhatsApp · W4 voice agent + Vision · W5 tests + demo</p><p style="font-size:24px;color:#A9A493">07 / 08</p></div>
+<aside>Feasibility. Every AI component is an existing, production API from Sarvam AI, the hackathon's technology partner, so the sprint is integration work, not model training. Sarvam Vision (Document AI) digitises paper registers in Tamil and English, about Rs 1 per page; a nurse confirms each row. Sarvam Voice Agents run Saaras v3 speech-to-text, Sarvam-105B and Bulbul v3 text-to-speech for Tamil/English outbound reminder calls over Exotel, writing confirm or reschedule back through tool calls. WhatsApp runs on Meta's Cloud API (utility messages about Rs 0.12–0.15 each); Saaras v3 transcribes voice-note replies (Rs 30 per audio hour). The core is deterministic: versioned schedule rules (ANC, PNC, Universal Immunisation Programme), Splink probabilistic record linking on non-clinical identifiers, FastAPI, PostgreSQL and a Next.js progressive web app. Hosting in AWS Mumbai; Sarvam's models run in India and can be deployed in our own AWS account. Known risks and mitigations: WhatsApp business verification (start week 1, use Meta test number), handwriting OCR errors (nurse confirm screen, Excel import as primary path), no open API for PICME/JANANI/U-WIN (import their exports), families without smartphones (voice path), consent (captured at registration, opt-out on every message).</aside>
+</section>
