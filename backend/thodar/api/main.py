@@ -6,7 +6,7 @@ from statistics import median
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from thodar.api.messaging_routes import router as messaging_router
@@ -30,6 +30,7 @@ from thodar.importer import (
     read_table,
 )
 from thodar.models import ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar.schedule_engine import expire_items
 from thodar.worklist import Bucket, build_worklist, record_action
 
 
@@ -58,7 +59,7 @@ def _attempt(a: ContactAttempt) -> AttemptOut:
 
 def _item(i: ScheduleItem) -> ItemOut:
     return ItemOut(id=i.id, code=i.code, label=i.label, schedule=i.schedule, subject=i.subject, owner=i.owner,
-                   due=i.due_date, window_end=i.window_end, status=i.status, rescheduled_to=i.rescheduled_to,
+                   due=i.due_date, window_end=i.window_end, actionable_until=i.actionable_until, status=i.status, rescheduled_to=i.rescheduled_to,
                    completed_on=i.completed_on, attempts=[_attempt(a) for a in i.attempts])
 
 
@@ -70,7 +71,10 @@ def health() -> dict:
 @app.get("/worklist", response_model=list[WorklistRow])
 def worklist(today: date | None = None, owner: str | None = None, horizon_days: int = 7,
              session: Session = Depends(get_session)):
-    rows = build_worklist(session, today or date.today(), owner=owner, horizon_days=horizon_days,
+    today = today or date.today()
+    expire_items(session, today)
+    session.commit()
+    rows = build_worklist(session, today, owner=owner, horizon_days=horizon_days,
                           grace_days=get_settings().default_grace_days)
     return [
         WorklistRow(
@@ -148,7 +152,10 @@ def dismiss_review(review_id: int, session: Session = Depends(get_session)):
 @app.get("/metrics", response_model=Metrics)
 def metrics(today: date | None = None, session: Session = Depends(get_session)):
     today = today or date.today()
+    expire_items(session, today)
+    session.commit()
     rows = build_worklist(session, today, horizon_days=0)
+    missed = session.scalar(select(func.count()).where(ScheduleItem.status == ItemStatus.missed)) or 0
     overdue = [r.days_overdue for r in rows if r.bucket in (Bucket.overdue, Bucket.unreachable)]
 
     done = list(session.scalars(select(ScheduleItem).where(ScheduleItem.status == ItemStatus.done)))
@@ -165,6 +172,8 @@ def metrics(today: date | None = None, session: Session = Depends(get_session)):
         unreachable=sum(r.bucket is Bucket.unreachable for r in rows),
         due_today=sum(r.bucket is Bucket.due_today for r in rows),
         median_days_overdue=median(overdue) if overdue else 0,
+        missed=missed,
+        missed_rate=missed / (missed + len(done)) if (missed + len(done)) else None,
         on_time_rate=len(on_time) / len(done) if done else None,
         families_reached_rate=len(reminded & replied) / len(reminded) if reminded else None,
     )

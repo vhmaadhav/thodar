@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
-from thodar.models import Baby, ItemStatus, Mother, Pregnancy, Subject
-from thodar.schedule_engine import cancel_remaining_anc, generate_for_pregnancy
+from thodar.models import Baby, ItemStatus, Mother, Pregnancy, ScheduleItem, Subject
+from thodar.schedule_engine import cancel_remaining_anc, expire_items, generate_for_pregnancy
 
 
 def _pregnancy(session, **kw):
@@ -53,8 +53,24 @@ def test_anc_after_preterm_birth_is_not_generated_or_is_cancelled(session):
     session.flush()
 
     p.delivery_date = lmp + timedelta(days=240)  # ~34 weeks
-    cancelled = cancel_remaining_anc(session, p)
-    assert cancelled == 1  # anc-4 at 36 weeks no longer applies
+    assert cancel_remaining_anc(session, p) == 4
+    by_code = {i.code: i.status for i in session.query(ScheduleItem).filter_by(pregnancy_id=p.id)}
+    assert by_code["anc-4"] is ItemStatus.cancelled  # after the birth: no longer applies
+    assert by_code["anc-3"] is ItemStatus.missed  # never attended: counts as missed
+
+
+def test_expiry_marks_missed_but_keeps_booked_catch_up(session):
+    dob = date(2026, 1, 1)
+    p = _pregnancy(session, delivery_date=dob)
+    session.add(Baby(pregnancy=p, dob=dob))
+    session.flush()
+    items = {i.code: i for i in generate_for_pregnancy(session, p)}
+    items["pnc-d7"].rescheduled_to = date(2026, 10, 5)
+    session.flush()
+    expire_items(session, date(2026, 10, 1))
+    assert items["pnc-48h"].status is ItemStatus.missed
+    assert items["pnc-d7"].status is ItemStatus.pending  # a booked date keeps it alive
+    assert items["uip-9m"].status is ItemStatus.pending  # still inside its catch-up period
 
 
 def test_doctor_set_interval_overrides_spacing(session):

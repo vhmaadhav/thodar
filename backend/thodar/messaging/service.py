@@ -19,6 +19,7 @@ from thodar.models import (
     Outcome,
     ScheduleItem,
 )
+from thodar.schedule_engine import expire_items
 from thodar.worklist import Action, build_worklist, effective_due, record_action
 
 CLINIC_NAME = "the clinic"
@@ -37,6 +38,7 @@ def run_reminders(session: Session, today: date, wa: WhatsAppClient, clinic: str
                   horizon_days: int = 1) -> ReminderRun:
     """At most one WhatsApp reminder per family per run, for its most overdue item awaiting one."""
     run = ReminderRun()
+    expire_items(session, today)
     seen: set[int] = set()
     for row in build_worklist(session, today, horizon_days=horizon_days):
         if row.next_step != "Send WhatsApp reminder" or row.mother.id in seen:

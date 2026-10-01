@@ -3,6 +3,8 @@
 name: pnc
 version: 2026-10-01
 anchor: delivery_date
+# A postnatal check that slips past its window plus 3 days is recorded as missed.
+expires_after_days: 3
 items:
   - code: pnc-48h
     label: PNC within 48 hours

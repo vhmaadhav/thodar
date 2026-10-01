@@ -29,6 +29,7 @@ class ItemStatus(StrEnum):
     pending = "pending"
     confirmed = "confirmed"
     done = "done"
+    missed = "missed"  # its window closed without the visit: the loss-to-care signal
     cancelled = "cancelled"
 
 
@@ -106,6 +107,8 @@ class ScheduleItem(Base):
     label: Mapped[str] = mapped_column(String(120))
     due_date: Mapped[date] = mapped_column(Date, index=True)
     window_end: Mapped[date] = mapped_column(Date)
+    # Last day the visit is still worth chasing (catch-up period). After it, the item becomes missed.
+    actionable_until: Mapped[date] = mapped_column(Date)
     status: Mapped[ItemStatus] = mapped_column(Enum(ItemStatus), default=ItemStatus.pending)
     rescheduled_to: Mapped[date | None] = mapped_column(Date)
     completed_on: Mapped[date | None] = mapped_column(Date)

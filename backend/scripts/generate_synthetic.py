@@ -19,6 +19,8 @@ INITIALS = list("ARKMSVPTDGN")
 VILLAGES = ["Melur", "Thiruparankundram", "Vadipatti", "Usilampatti", "Peraiyur", "Kottampatti", "Madurai Urban"]
 
 ANC_DAYS = [56, 98, 196, 252]
+PNC = [("PNC 48h", 0, 0.95), ("PNC D3", 3, 0.8), ("PNC D7", 7, 0.75), ("PNC 6wk", 42, 0.6),
+       ("Newborn 48h", 0, 0.95), ("Newborn D7", 7, 0.75)]
 UIP = [("Birth", 0), ("6 wk", 42), ("10 wk", 70), ("14 wk", 98), ("9 mo", 270), ("16 mo", 487)]
 
 
@@ -82,6 +84,11 @@ def main() -> None:
         delivered = lmp + timedelta(days=rng.randint(252, 287))
         if delivered >= today:
             continue
+        pnc = {}
+        for col, offset, p in PNC:
+            due = delivered + timedelta(days=offset)
+            seen = due < today - timedelta(days=2) and rng.random() < p
+            pnc[col] = fmt(due + timedelta(days=rng.randint(0, 2))) if seen else ""
         delivery_rows.append({
             "Date": fmt(delivered),
             "Mother name": messy_name(given, initial, rng),
@@ -89,6 +96,7 @@ def main() -> None:
             "RCH no": rch if rng.random() < 0.7 else "",
             "Baby sex": rng.choice("MF"),
             "Village": village,
+            **pnc,
         })
 
         doses = {}

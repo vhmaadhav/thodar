@@ -27,6 +27,7 @@ class Rule:
     owner: str
     due_offset_days: int
     window_end_days: int
+    expires_after_days: int = 0
 
 
 @lru_cache
@@ -43,6 +44,7 @@ def load_rules(name: str) -> tuple[Rule, ...]:
                 owner=item.get("owner", doc.get("owner")),
                 due_offset_days=item["due_offset_days"],
                 window_end_days=item["window_end_days"],
+                expires_after_days=item.get("expires_after_days", doc.get("expires_after_days", 0)),
             )
         )
     return tuple(rules)
@@ -61,7 +63,7 @@ def _anc_rules(pregnancy: Pregnancy) -> list[Rule]:
     while offset <= rules[-1].window_end_days:
         respaced.append(
             Rule("anc", f"anc-{n}", f"ANC visit {n} (doctor-set interval)", Subject.mother,
-                 first.owner, offset, offset + min(step, 14))
+                 first.owner, offset, offset + min(step, 14), first.expires_after_days)
         )
         offset += step
         n += 1
@@ -85,6 +87,7 @@ def _make(rule: Rule, anchor: date, pregnancy: Pregnancy, baby: Baby | None) -> 
         label=rule.label,
         due_date=anchor + timedelta(days=rule.due_offset_days),
         window_end=anchor + timedelta(days=rule.window_end_days),
+        actionable_until=anchor + timedelta(days=rule.window_end_days + rule.expires_after_days),
         owner=rule.owner,
         status=ItemStatus.pending,
     )
@@ -124,15 +127,32 @@ def generate_for_baby(session: Session, pregnancy: Pregnancy, baby: Baby) -> lis
 
 
 def cancel_remaining_anc(session: Session, pregnancy: Pregnancy) -> int:
-    """After delivery, pending ANC items dated after the birth are closed, not left overdue."""
+    """At delivery, open ANC items close: ones dated after the birth no longer apply (cancelled);
+    earlier ones that never happened are recorded as missed."""
     n = 0
     stmt = select(ScheduleItem).where(
         ScheduleItem.pregnancy_id == pregnancy.id,
         ScheduleItem.schedule == "anc",
-        ScheduleItem.status == ItemStatus.pending,
+        ScheduleItem.status.in_([ItemStatus.pending, ItemStatus.confirmed]),
     )
     for item in session.scalars(stmt):
-        if pregnancy.delivery_date and item.due_date > pregnancy.delivery_date:
-            item.status = ItemStatus.cancelled
-            n += 1
+        if not pregnancy.delivery_date:
+            continue
+        item.status = ItemStatus.cancelled if item.due_date > pregnancy.delivery_date else ItemStatus.missed
+        n += 1
+    return n
+
+
+def expire_items(session: Session, today: date) -> int:
+    """Marks open items whose catch-up period has passed as missed. Run daily (and before the worklist)."""
+    stmt = select(ScheduleItem).where(
+        ScheduleItem.status.in_([ItemStatus.pending, ItemStatus.confirmed]),
+        ScheduleItem.actionable_until < today,
+    )
+    n = 0
+    for item in session.scalars(stmt):
+        if item.rescheduled_to and item.rescheduled_to >= today:
+            continue  # a booked catch-up date keeps it alive
+        item.status = ItemStatus.missed
+        n += 1
     return n

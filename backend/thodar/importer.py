@@ -2,7 +2,7 @@
 
 Three sources, each with the column names clinics actually use:
 - ANC register: RCH ID, Name, Mobile, Village, LMP, ANC1..ANC4 (dates attended)
-- Delivery register: Date, Mother name, Ph no, RCH no, Baby sex, Village
+- Delivery register: Date, Mother name, Ph no, RCH no, Baby sex, Village, optional PNC/newborn visit dates
 - Immunisation register: Child name, DOB, Mother mobile, then one column per visit (Birth, 6 wk, ...)
 """
 
@@ -18,6 +18,15 @@ from thodar import normalize
 from thodar.linking import Candidate, best_link
 from thodar.models import Baby, ItemStatus, LinkReview, Mother, Pregnancy, ScheduleItem
 from thodar.schedule_engine import cancel_remaining_anc, generate_for_pregnancy
+
+PNC_COLUMNS = {  # delivery-register column -> (code, belongs to baby)
+    "pnc 48h": ("pnc-48h", False),
+    "pnc d3": ("pnc-d3", False),
+    "pnc d7": ("pnc-d7", False),
+    "pnc 6wk": ("pnc-d42", False),
+    "newborn 48h": ("nb-48h", True),
+    "newborn d7": ("nb-d7", True),
+}
 
 UIP_COLUMNS = {
     "birth": "uip-birth",
@@ -167,6 +176,11 @@ def import_delivery_register(session: Session, df: pd.DataFrame) -> ImportReport
             session.flush()
         generate_for_pregnancy(session, pregnancy)
         session.flush()
+        baby = pregnancy.babies[0] if pregnancy.babies else None
+        for column, (code, for_baby) in PNC_COLUMNS.items():
+            seen = _date(_col(row, column))
+            if seen and (baby or not for_baby):
+                _mark_done(session, pregnancy.id, code, seen, baby_id=baby.id if for_baby else None)
     session.commit()
     return report
 

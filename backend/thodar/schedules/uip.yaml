@@ -6,6 +6,8 @@ version: 2026-10-01
 subject: baby
 anchor: dob
 owner: paediatrics
+# Catch-up periods (days after window end) below are placeholders for the clinical lead to set.
+expires_after_days: 180
 items:
   - code: uip-birth
     label: Birth doses
@@ -32,8 +34,10 @@ items:
     includes: [MR-1, PCV booster, fIPV-3]
     due_offset_days: 270
     window_end_days: 365
+    expires_after_days: 365
   - code: uip-16m
     label: 16–24 month vaccines
     includes: [MR-2, DPT booster-1, OPV booster]
     due_offset_days: 487
     window_end_days: 730
+    expires_after_days: 365

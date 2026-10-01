@@ -47,6 +47,7 @@ class ItemOut(BaseModel):
     owner: str
     due: date
     window_end: date
+    actionable_until: date
     status: str
     rescheduled_to: date | None
     completed_on: date | None
@@ -96,5 +97,7 @@ class Metrics(BaseModel):
     unreachable: int
     due_today: int
     median_days_overdue: float
+    missed: int  # visits whose catch-up period closed without the visit
+    missed_rate: float | None  # missed / (missed + done): the loss-to-care rate
     on_time_rate: float | None  # share of completed items done by their window end
     families_reached_rate: float | None  # share of reminded items with a reply

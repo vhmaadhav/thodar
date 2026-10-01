@@ -6,6 +6,8 @@ version: 2026-10-01
 subject: mother
 anchor: lmp
 owner: obstetrics
+# ANC catch-up: still worth chasing for two weeks after its window; closed at delivery regardless.
+expires_after_days: 14
 items:
   - code: anc-1
     label: ANC visit 1 (by 12 weeks)

@@ -32,7 +32,7 @@ def test_three_registers_become_one_thread(session):
 
     assert baby.pregnancy.mother_id == mother.id
     assert items["anc-1"].status is ItemStatus.done
-    assert items["anc-3"].status is ItemStatus.pending  # missed, still visible
+    assert items["anc-3"].status is ItemStatus.missed  # never attended before delivery: counted as missed
     assert "pnc-d7" in items and items["uip-birth"].status is ItemStatus.done
     assert items["uip-6w"].baby_id == baby.id and items["uip-6w"].owner == "paediatrics"
 
