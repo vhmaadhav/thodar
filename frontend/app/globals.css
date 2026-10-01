@@ -157,3 +157,24 @@ table.plain th { color: var(--muted); font-weight: 600; font-size: 12px; text-tr
 .error { background: var(--madder-soft); color: var(--madder); }
 .empty { padding: 40px 20px; text-align: center; color: var(--muted); }
 .scope-note { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
+
+/* Phones: a nurse should see families on the first screen */
+@media (max-width: 640px) {
+  .shell { padding: 0 12px 48px; }
+  .topbar { padding: 12px 0 8px; gap: 8px; }
+  .brand-name { font-size: 24px; }
+  .brand-tag { display: none; }
+  .nav { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 2px; }
+  .nav a { padding: 6px 10px; white-space: nowrap; }
+  .page-title { font-size: 24px; }
+  .sub { font-size: 13px; }
+  .tiles { grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0; }
+  .tile { padding: 8px 10px; }
+  .tile-num { font-size: 20px; }
+  .tile-label { font-size: 11px; line-height: 1.25; }
+  .toolbar .btn.primary { width: 100%; }
+  .family { padding: 12px; }
+  .actions { justify-content: flex-start; }
+  .btn.small { padding: 6px 9px; }
+  .phone { position: static; }
+}
