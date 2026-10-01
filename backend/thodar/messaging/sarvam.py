@@ -3,6 +3,7 @@ so the rest of Thodar runs offline and falls back to rules or a human."""
 
 import json
 import logging
+import time
 
 import httpx
 
@@ -19,6 +20,42 @@ CLASSIFY_PROMPT = (
     "(anything else, and ALWAYS for any mention of health, symptoms, medicine or the baby's condition). "
     "Never give advice. Today is {today}. Reply as JSON."
 )
+
+
+# Register columns Sarvam Vision should read off a photographed page, by register type.
+# Keys are schema field names; values are the importer's column names.
+REGISTER_FIELDS: dict[str, dict[str, tuple[str, str]]] = {
+    "anc": {
+        "rch_id": ("RCH ID", "12-digit RCH ID, if written"),
+        "name": ("Name", "Mother's name as written"),
+        "mobile": ("Mobile", "Mobile number"),
+        "village": ("Village", "Village or area"),
+        "lmp": ("LMP", "Last menstrual period date, DD-MM-YYYY"),
+        "anc1": ("ANC1", "Date of 1st antenatal visit, DD-MM-YYYY, empty if blank"),
+        "anc2": ("ANC2", "Date of 2nd antenatal visit, DD-MM-YYYY, empty if blank"),
+        "anc3": ("ANC3", "Date of 3rd antenatal visit, DD-MM-YYYY, empty if blank"),
+        "anc4": ("ANC4", "Date of 4th antenatal visit, DD-MM-YYYY, empty if blank"),
+    },
+    "delivery": {
+        "date": ("Date", "Date of delivery, DD-MM-YYYY"),
+        "mother_name": ("Mother name", "Mother's name as written"),
+        "phone": ("Ph no", "Phone number"),
+        "rch_no": ("RCH no", "12-digit RCH number, if written"),
+        "baby_sex": ("Baby sex", "M or F"),
+        "village": ("Village", "Village or area"),
+    },
+    "immunisation": {
+        "child_name": ("Child name", "Child's name, often 'Baby of <mother>'"),
+        "dob": ("DOB", "Child's date of birth, DD-MM-YYYY"),
+        "mother_mobile": ("Mother mobile", "Mother's mobile number"),
+        "birth": ("Birth", "Date birth doses given, DD-MM-YYYY, empty if blank"),
+        "w6": ("6 wk", "Date 6-week vaccines given, empty if blank"),
+        "w10": ("10 wk", "Date 10-week vaccines given, empty if blank"),
+        "w14": ("14 wk", "Date 14-week vaccines given, empty if blank"),
+        "m9": ("9 mo", "Date 9-month vaccines given, empty if blank"),
+        "m16": ("16 mo", "Date 16-24 month vaccines given, empty if blank"),
+    },
+}
 
 
 class SarvamClient:
@@ -60,6 +97,48 @@ class SarvamClient:
         )
         r.raise_for_status()
         return r.json()["audios"][0]
+
+    def extract_register(self, page: bytes, filename: str, register: str, language: str = "ta-IN",
+                         timeout_s: int = 120) -> list[dict] | None:
+        """Sarvam Vision (Document AI Extract): a photographed register page -> rows keyed by importer
+        column names. Rows are a draft: a nurse verifies them before anything is saved."""
+        if not self.enabled:
+            return None
+        fields = REGISTER_FIELDS[register]
+        schema = {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "array",
+                    "description": "One entry per filled row of the register table, top to bottom",
+                    "items": {
+                        "type": "object",
+                        "properties": {k: {"type": "string", "description": d} for k, (_, d) in fields.items()},
+                    },
+                }
+            },
+        }
+        r = httpx.post(f"{self.base_url}/doc-ai/v1/job/extract", headers=self._headers(),
+                       files={"file": (filename, page)},
+                       data={"schema": json.dumps(schema), "language": language, "output_format": "json"},
+                       timeout=60)
+        r.raise_for_status()
+        job_id = r.json()["job_id"]
+        deadline = time.monotonic() + timeout_s
+        while True:
+            st = httpx.get(f"{self.base_url}/doc-ai/v1/job/{job_id}/status", headers=self._headers(), timeout=30)
+            st.raise_for_status()
+            status = st.json()["status"].lower()
+            if status in ("completed", "partially_completed"):
+                break
+            if status in ("failed", "rejected") or time.monotonic() > deadline:
+                raise RuntimeError(f"Sarvam Vision job {job_id} ended as {status}")
+            time.sleep(3)
+        res = httpx.get(f"{self.base_url}/doc-ai/v1/job/{job_id}/results", headers=self._headers(), timeout=30)
+        res.raise_for_status()
+        result = res.json().get("result") or {}
+        rows = result.get("rows", []) if isinstance(result, dict) else []
+        return [{col: (row.get(k) or None) for k, (col, _) in fields.items()} for row in rows]
 
     def classify(self, text: str, today: str) -> tuple[Kind, str | None] | None:
         """Sarvam-105B fallback for replies the rules can't place. Output is constrained to our labels."""

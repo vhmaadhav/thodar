@@ -86,3 +86,13 @@ def test_whatsapp_webhook_and_voice_tools(client):
         {"from": "919000000001", "type": "text", "text": {"body": "baby has fever"}}]}}]}]}
     handled = client.post("/webhooks/whatsapp", params={"today": str(TODAY)}, json=body).json()["handled"]
     assert handled[0]["intent"] == "needs_staff"
+
+
+def test_photo_import_needs_sarvam_key_and_rows_import_works(client, monkeypatch):
+    monkeypatch.setattr("thodar.messaging.sarvam.get_settings", lambda: type("S", (), {
+        "sarvam_api_key": "", "sarvam_base_url": "https://api.sarvam.ai"})())
+    r = client.post("/import/anc/photo", files={"file": ("page.jpg", b"fake")})
+    assert r.status_code == 501
+
+    rows = [{"RCH ID": None, "Name": "Revathi S", "Mobile": "9000000099", "Village": "Melur", "LMP": "01-06-2026"}]
+    assert client.post("/import/anc/rows", json=rows).json()["created"] == 1

@@ -23,7 +23,10 @@ from thodar.api.schemas import (
     ThreadOut,
     WorklistRow,
 )
+import pandas as pd
+
 from thodar.config import get_settings
+from thodar.messaging.sarvam import SarvamClient
 from thodar.db import get_session, init_db
 from thodar.importer import (
     import_anc_register,
@@ -180,6 +183,32 @@ async def import_register(source: str, file: UploadFile, session: Session = Depe
     df = read_table(io.BytesIO(await file.read()), filename=file.filename or "")
     report = IMPORTERS[source](session, df)
     return report.__dict__
+
+
+@app.post("/import/{source}/photo")
+async def import_photo(source: str, file: UploadFile, language: str = "ta-IN"):
+    """Reads a photographed register page with Sarvam Vision. Returns DRAFT rows for a nurse to
+    check and correct; nothing is saved until they are posted to /import/{source}/rows."""
+    if source not in IMPORTERS:
+        raise HTTPException(404, f"unknown source; use one of {sorted(IMPORTERS)}")
+    client = SarvamClient()
+    if not client.enabled:
+        raise HTTPException(501, "Reading photos needs Sarvam Vision: set THODAR_SARVAM_API_KEY.")
+    try:
+        rows = client.extract_register(await file.read(), file.filename or "page.jpg", source, language)
+    except Exception as e:  # surface the provider's message to the nurse
+        raise HTTPException(502, f"Sarvam Vision could not read the page: {e}") from e
+    return {"draft": True, "rows": rows or []}
+
+
+@app.post("/import/{source}/rows")
+def import_rows(source: str, rows: list[dict], session: Session = Depends(get_session)):
+    """Imports rows a nurse has checked (from a photo draft or typed in)."""
+    if source not in IMPORTERS:
+        raise HTTPException(404, f"unknown source; use one of {sorted(IMPORTERS)}")
+    df = pd.DataFrame(rows, dtype=str)
+    df = df.where(df.notna(), None)
+    return IMPORTERS[source](session, df).__dict__
 
 
 @app.get("/reviews", response_model=list[ReviewOut])
