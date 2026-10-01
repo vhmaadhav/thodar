@@ -6,6 +6,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from thodar.ai.stt import STT, OffshoreNotAllowed, get_stt
 from thodar.messaging import templates
 from thodar.messaging.intents import Intent, Kind, classify, from_button
 from thodar.messaging.sarvam import SarvamClient
@@ -88,7 +89,7 @@ class Handled:
 
 
 def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppClient,
-                    sarvam: SarvamClient | None = None) -> Handled:
+                    sarvam: SarvamClient | None = None, stt: "STT | None" = None) -> Handled:
     sarvam = sarvam or SarvamClient()
     mother = session.scalars(select(Mother).where(Mother.phone == msg.phone)).first()
     if mother is None:
@@ -107,7 +108,11 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
         text = msg.text
         if msg.kind == "audio" and msg.media_id:
             audio = wa.download_media(msg.media_id)
-            transcript = sarvam.transcribe(audio) if audio else None
+            if audio:
+                try:
+                    transcript = (stt or get_stt()).transcribe(audio, "voice.ogg", mother.language.value)
+                except OffshoreNotAllowed:
+                    transcript = None  # misconfigured provider: a person listens instead
             text = transcript
         intent = classify(text or "", today)
         if intent.kind is Kind.needs_staff and text and intent.reason == "not understood by rules":

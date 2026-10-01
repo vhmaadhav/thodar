@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/insights", label: "Insights" },
   { href: "/review", label: "Review" },
   { href: "/import", label: "Import" },
+  { href: "/ai", label: "AI & data" },
 ];
 
 export default function Nav() {

@@ -36,6 +36,17 @@ Consequences for our design:
 | Name: Thodar (தொடர்) | Tamil for "continue / follow through"; ≥5 chars; backups Inai (இணை), Thaai-Sei (தாய்-சேய்) |
 | Earlier names dropped | NaalLink, Dhaaga (Hindi roots) |
 
+## Best tool per AI job (researched 1 Oct 2026)
+
+Sarvam is the event partner, but each job uses whatever works best on Tamil clinic data. Providers are swappable; `backend/scripts/eval_stt.py` compares speech-to-text on our own consented clips.
+
+| Job | Evidence | Choice |
+|---|---|---|
+| Voice-note transcription | Vimarsha (AI4Bharat, arXiv 2609.24199): open-source IndicConformer leads both splits, Saaras close and robust in noise. BRIDGE (Humyn Labs, May 2026): ElevenLabs Scribe v2 lowest WER (10.6%), Saaras 3rd (20.2%), Deepgram best on code-switching. Vendor-reported numbers ignored. | Swappable: Saaras (default, India), IndicConformer (MIT, self-hosted in India), ElevenLabs (offshore, blocked unless opted in). Decide with our own eval in week 1. |
+| Handwritten register OCR | Sarvam Vision 2.1 (Sept 2026) leads published Indic handwriting results; Gemini Pro falls to ~50 on Indic handwriting (Analytics Vidhya review). | Sarvam Vision, nurse verifies every row. |
+| Tamil reminder voice | Reviewers: Bulbul clearer on Indian accents; ElevenLabs more expressive. Clarity matters for reminders. | Bulbul v3. |
+| Reply understanding | Rules are auditable; LLM only as a constrained fallback. | Rules, then Sarvam-105B limited to scheduling labels. |
+
 ## Research notes
 
 **India, NFHS-6 (2023-24)** — PIB, 29 May 2026

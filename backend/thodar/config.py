@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str = ""
     whatsapp_verify_token: str = "thodar-dev"
 
+    # Speech-to-text for voice notes: sarvam (default) | indicconformer (self-hosted) | elevenlabs.
+    stt_provider: str = "sarvam"
+    indicconformer_url: str = "http://localhost:8001/transcribe"
+    elevenlabs_api_key: str = ""
+    # Health conversations must stay in India unless a clinic explicitly opts in (DPDP Act).
+    allow_offshore_processing: bool = False
+
     # Shared secret the Sarvam voice agent sends when it calls Thodar's tool endpoints.
     voice_tool_key: str = "thodar-dev-tool-key"
     clinic_name: str = "the clinic"

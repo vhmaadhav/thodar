@@ -26,6 +26,7 @@ from thodar.api.schemas import (
 import pandas as pd
 
 from thodar.config import get_settings
+from thodar.ai.stt import OffshoreNotAllowed, get_stt
 from thodar.messaging.sarvam import SarvamClient
 from thodar.db import get_session, init_db
 from thodar.importer import (
@@ -66,6 +67,37 @@ def _item(i: ScheduleItem) -> ItemOut:
     return ItemOut(id=i.id, code=i.code, label=i.label, schedule=i.schedule, subject=i.subject, owner=i.owner,
                    due=i.due_date, window_end=i.window_end, actionable_until=i.actionable_until, status=i.status, rescheduled_to=i.rescheduled_to,
                    completed_on=i.completed_on, attempts=[_attempt(a) for a in i.attempts])
+
+
+@app.get("/ai")
+def ai_providers():
+    """Which provider does each AI job, where data is processed, and what happens without it."""
+    s = get_settings()
+    try:
+        stt = get_stt(s)
+        stt_row = {"provider": stt.name, "processes_in": stt.processes_in}
+    except OffshoreNotAllowed as e:
+        stt_row = {"provider": f"{s.stt_provider} (blocked)", "processes_in": str(e)}
+    sarvam_on = bool(s.sarvam_api_key)
+    return [
+        {"job": "Read photos of paper registers", "provider": "Sarvam Vision (Document AI Extract)",
+         "processes_in": "India (Sarvam)", "active": sarvam_on,
+         "without_it": "Upload the register as Excel/CSV instead", "why": "Leads published Indic handwriting OCR results (Sarvam Vision 2.1, Sept 2026); a nurse checks every row"},
+        {"job": "Transcribe families' voice notes", **stt_row,
+         "active": sarvam_on or s.stt_provider != "sarvam",
+         "without_it": "Voice note goes to a nurse to listen",
+         "why": "Swappable: Saaras v3 (partner, India), IndicConformer (MIT, self-hosted, led Vimarsha 2026), ElevenLabs Scribe v2 (led BRIDGE 2026; offshore, off by default). Choose with scripts/eval_stt.py on our own clips"},
+        {"job": "Understand typed replies", "provider": "Rules (Tamil, English, Tanglish)", "processes_in": "Our server",
+         "active": True, "without_it": "n/a", "why": "Deterministic and auditable; health words always go to a person"},
+        {"job": "Replies the rules can't place", "provider": "Sarvam-105B, limited to the same labels",
+         "processes_in": "India (Sarvam)", "active": sarvam_on, "without_it": "Goes to a nurse",
+         "why": "Never sees health messages; can only choose a scheduling label"},
+        {"job": "Reminder phone calls", "provider": "Sarvam Voice Agents (Saaras v3, Sarvam-105B, Bulbul v3)",
+         "processes_in": "India (Sarvam)", "active": sarvam_on, "without_it": "Nurse calls from the worklist",
+         "why": "Clear Tamil voices; tools limited to looking up and rescheduling a visit"},
+        {"job": "Due dates, worklist order, missed visits", "provider": "Fixed rules (versioned YAML)",
+         "processes_in": "Our server", "active": True, "without_it": "n/a", "why": "No AI: every rule is readable by a clinician"},
+    ]
 
 
 @app.get("/health")
