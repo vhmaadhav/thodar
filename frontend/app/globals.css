@@ -122,7 +122,7 @@ h1, h2, h3 { margin: 0; }
 .phone { background: var(--ink); color: var(--cotton); border-radius: 28px; padding: 16px; position: sticky; top: 16px; }
 .phone-title { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--turmeric); font-weight: 600; }
 .chat { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
-.bubble { background: var(--cotton); color: var(--ink); border-radius: 14px 14px 14px 4px; padding: 9px 12px; font-size: 14px; max-width: 92%; }
+.bubble { white-space: pre-line; background: var(--cotton); color: var(--ink); border-radius: 14px 14px 14px 4px; padding: 9px 12px; font-size: 14px; max-width: 92%; }
 .bubble.me { align-self: flex-end; background: var(--ink-2); color: var(--cotton); border-radius: 14px 14px 4px 14px; }
 .bubble .to { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
 .bubble.me .to { color: #c9c3b4; }

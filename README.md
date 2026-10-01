@@ -60,6 +60,8 @@ Open http://localhost:3000. API docs are at http://localhost:8000/docs.
 
 **Demo in two minutes:** on the Worklist, press *Send today's WhatsApp reminders*. The phone panel shows the Tamil reminder; tap a sample reply such as *"இன்னைக்கு வர முடியாது, சனிக்கிழமை வரேன்"* (can't come today, will come Saturday) and watch the visit move to Saturday. Try *"குழந்தைக்கு காய்ச்சல்"* (baby has fever): it goes to staff and the family is told a nurse will call. Open a family to see the mother–baby thread, and *Insights* for the drop-off funnel.
 
+With a Sarvam key in `backend/.env` (`THODAR_SARVAM_API_KEY=...`), the phone panel's 🎤 buttons send real Tamil voice notes: Saaras v3 transcribes them live, then the rules and Sarvam-105B (two safety locks) decide what happens. `uv run python scripts/smoke_sarvam.py` checks every Sarvam API.
+
 Without API keys everything runs offline: WhatsApp messages land in the demo phone, and Sarvam calls fall back to rules or a person.
 
 ### Configuration (`backend/.env`, all optional)

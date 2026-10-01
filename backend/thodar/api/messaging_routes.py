@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,7 +13,7 @@ from thodar.config import get_settings
 from thodar.db import get_session
 from thodar.messaging import templates
 from thodar.messaging.service import handle_incoming, run_reminders
-from thodar.messaging.whatsapp import WhatsAppClient, parse_webhook
+from thodar.messaging.whatsapp import Incoming, WhatsAppClient, parse_webhook
 from thodar.models import Channel, ContactAttempt, Mother, Outcome, ScheduleItem
 from thodar.worklist import Action, build_worklist, effective_due, record_action
 
@@ -55,6 +55,17 @@ async def receive(request: Request, today: date | None = None, session: Session 
         handled.append({"item_id": h.item_id, "intent": h.intent.kind, "reason": h.intent.reason,
                         "transcript": h.transcript})
     return {"handled": handled}
+
+
+@router.post("/demo/voice-note")
+async def demo_voice_note(file: UploadFile, phone: str = Form(...), today: date | None = None,
+                          session: Session = Depends(get_session), wa: WhatsAppClient = Depends(whatsapp)):
+    """Demo stand-in for a WhatsApp voice note: same path as the webhook, audio uploaded directly."""
+    p = normalize.phone(phone)
+    if not p:
+        raise HTTPException(422, "invalid phone")
+    h = handle_incoming(session, Incoming(p, "audio"), today or date.today(), wa, audio=await file.read())
+    return {"item_id": h.item_id, "intent": h.intent.kind, "reason": h.intent.reason, "transcript": h.transcript}
 
 
 # --- Sarvam Voice Agent tools ------------------------------------------------------------------

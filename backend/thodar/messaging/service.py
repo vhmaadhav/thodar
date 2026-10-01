@@ -105,7 +105,9 @@ class Handled:
 
 
 def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppClient,
-                    sarvam: SarvamClient | None = None, stt: "STT | None" = None) -> Handled:
+                    sarvam: SarvamClient | None = None, stt: "STT | None" = None,
+                    audio: bytes | None = None) -> Handled:
+    """`audio` lets a caller pass voice-note bytes directly (demo upload) instead of a WhatsApp media id."""
     sarvam = sarvam or SarvamClient()
     mother = session.scalars(select(Mother).where(Mother.phone == msg.phone)).first()
     if mother is None:
@@ -122,8 +124,8 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
         intent = Intent(kind, reason="button")
     else:
         text = msg.text
-        if msg.kind == "audio" and msg.media_id:
-            audio = wa.download_media(msg.media_id)
+        if msg.kind == "audio":
+            audio = audio or (wa.download_media(msg.media_id) if msg.media_id else None)
             if audio:
                 try:
                     transcript = (stt or get_stt()).transcribe(audio, "voice.ogg", mother.language.value)

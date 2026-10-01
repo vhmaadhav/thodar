@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, postJSON } from "@/lib/api";
+import { API, api, postJSON } from "@/lib/api";
 
 interface OutMsg {
   to: string;
@@ -23,6 +23,12 @@ const SAMPLES = [
   "குழந்தைக்கு காய்ச்சல்",
   "wrong number",
   "STOP",
+];
+
+const VOICE_NOTES = [
+  { file: "voice_reschedule_ta.wav", label: "🎤 Can't come today, Saturday" },
+  { file: "voice_fever_ta.wav", label: "🎤 Baby has fever 2 days" },
+  { file: "voice_confirm_ta.wav", label: "🎤 Will surely come tomorrow" },
 ];
 
 /** Demo stand-in for a family's WhatsApp: shows what Thodar sent and lets you reply as the family. */
@@ -79,6 +85,28 @@ export default function PhoneSimulator({ onChange, tick }: { onChange: () => voi
     onChange();
   }
 
+  async function sendVoice(file: string, label: string) {
+    const after = outbox.filter((m) => m.to.endsWith(active)).length - 1;
+    setStatus("Transcribing the voice note with Saaras…");
+    const blob = await (await fetch(`/samples/${file}`)).blob();
+    const fd = new FormData();
+    fd.append("file", blob, file);
+    fd.append("phone", active);
+    try {
+      const res = await fetch(`${API}/demo/voice-note`, { method: "POST", body: fd });
+      const h = await res.json();
+      if (!res.ok) throw new Error(h.detail ?? res.statusText);
+      setReplies((r) => [
+        ...r,
+        { from: "family", phone: active, text: `${label}\n“${h.transcript ?? "(no transcript)"}”`, after } as Turn,
+      ]);
+      setStatus(`Heard “${h.transcript ?? "?"}” → ${String(h.intent).replace("_", " ")} (${h.reason})`);
+    } catch (e) {
+      setStatus((e as Error).message);
+    }
+    onChange();
+  }
+
   return (
     <aside className="phone" aria-label="Family phone simulator">
       <div className="phone-title">Family&apos;s WhatsApp · demo</div>
@@ -128,6 +156,13 @@ export default function PhoneSimulator({ onChange, tick }: { onChange: () => voi
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Reply as the family…" />
             <button className="btn small accent">Send</button>
           </form>
+          <div className="chip-row">
+            {VOICE_NOTES.map((v) => (
+              <button key={v.file} className="chip" onClick={() => sendVoice(v.file, v.label)}>
+                {v.label}
+              </button>
+            ))}
+          </div>
           <div className="chip-row">
             {SAMPLES.map((s) => (
               <button key={s} className="chip" onClick={() => send({ type: "text", text: { body: s } }, s)}>
