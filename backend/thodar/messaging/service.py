@@ -12,6 +12,7 @@ from thodar.messaging.intents import Intent, Kind, classify, from_button
 from thodar.messaging.sarvam import SarvamClient
 from thodar.messaging.whatsapp import Incoming, WhatsAppClient
 from thodar.models import (
+    InboxMessage,
     Baby,
     Channel,
     ContactAttempt,
@@ -153,7 +154,20 @@ def handle_incoming(session: Session, msg: Incoming, today: date, wa: WhatsAppCl
     mother = session.scalars(select(Mother).where(
         (Mother.phone == msg.phone) | (Mother.family_phone == msg.phone))).first()
     if mother is None:
-        return Handled(None, Intent(Kind.needs_staff, reason="unknown number"), None)
+        # Unknown number: keep it for staff (transcribed if it is a voice note) and tell the sender.
+        if msg.kind == "audio":
+            audio = audio or (wa.download_media(msg.media_id) if msg.media_id else None)
+            try:
+                text = (stt or get_stt()).transcribe(audio, "voice.ogg", "ta") if audio else None
+            except OffshoreNotAllowed:
+                text = None
+        else:
+            text = msg.text
+        session.add(InboxMessage(phone=msg.phone, kind=msg.kind, text=text))
+        session.commit()
+        reply = templates.ack_unknown()
+        wa.send_text(msg.phone, reply)
+        return Handled(None, Intent(Kind.needs_staff, reason="unknown number"), reply, text)
     lang = mother.language
 
     item: ScheduleItem | None = None

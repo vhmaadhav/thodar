@@ -114,3 +114,19 @@ def test_family_contact_can_be_set_and_cleared(client):
     assert out["family_phone"] == "9000000999" and out["family_relation"] == "husband"
     assert client.get("/mothers/1/thread").json()["family_relation"] == "husband"
     assert client.patch("/mothers/1", json={"family_phone": ""}).json()["family_phone"] is None
+
+
+def test_unknown_number_lands_in_inbox_and_can_be_attached(client):
+    client.post("/import/anc", files={"file": ("anc.csv", ANC)})
+    body = {"entry": [{"changes": [{"value": {"messages": [
+        {"from": "919000000777", "type": "text", "text": {"body": "this is Meena's husband, new number"}}]}}]}]}
+    assert client.post("/webhooks/whatsapp", json=body).json()["handled"][0]["reason"] == "unknown number"
+    inbox = client.get("/inbox").json()
+    assert inbox[0]["phone"] == "9000000777" and "husband" in inbox[0]["text"]
+
+    out = client.post(f"/inbox/{inbox[0]['id']}/attach", json={"mother_id": 1, "as": "family"}).json()
+    assert out["family_phone"] == "9000000777"
+    assert client.get("/inbox").json() == []
+    # The next message from that number is now understood as this family's.
+    body["entry"][0]["changes"][0]["value"]["messages"][0]["text"]["body"] = "STOP"
+    assert client.post("/webhooks/whatsapp", json=body).json()["handled"][0]["intent"] == "stop"

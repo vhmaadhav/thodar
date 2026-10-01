@@ -6,6 +6,7 @@ from statistics import median
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -39,7 +40,7 @@ from thodar.importer import (
 from thodar import normalize
 from thodar.benefits import benefit_for
 from thodar.draft_checks import check_rows
-from thodar.models import Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar.models import InboxMessage, Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
@@ -298,6 +299,39 @@ def import_rows(source: str, rows: list[dict], session: Session = Depends(get_se
     df = pd.DataFrame(rows, dtype=str)
     df = df.where(df.notna(), None)
     return IMPORTERS[source](session, df).__dict__
+
+
+@app.get("/inbox")
+def inbox(session: Session = Depends(get_session)):
+    """Messages from numbers not on file, newest first."""
+    rows = session.scalars(select(InboxMessage).where(InboxMessage.resolved_mother_id.is_(None))
+                           .order_by(InboxMessage.received_at.desc()))
+    return [{"id": r.id, "phone": r.phone, "kind": r.kind, "text": r.text, "received_at": r.received_at}
+            for r in rows]
+
+
+class InboxResolve(BaseModel):
+    mother_id: int
+    as_: str = Field(default="family", alias="as")  # family | mother: whose number this is
+
+
+@app.post("/inbox/{message_id}/attach")
+def attach_inbox(message_id: int, body: InboxResolve, session: Session = Depends(get_session)):
+    """Attach an unknown number to a family: as the mother's new number or as the family contact.
+    Every unread message from that number is resolved together."""
+    msg = session.get(InboxMessage, message_id)
+    mother = session.get(Mother, body.mother_id)
+    if msg is None or mother is None:
+        raise HTTPException(404, "message or mother not found")
+    if body.as_ == "mother":
+        mother.phone = msg.phone
+    else:
+        mother.family_phone = msg.phone
+    for m in session.scalars(select(InboxMessage).where(InboxMessage.phone == msg.phone,
+                                                       InboxMessage.resolved_mother_id.is_(None))):
+        m.resolved_mother_id = mother.id
+    session.commit()
+    return {"ok": True, "phone": mother.phone, "family_phone": mother.family_phone}
 
 
 @app.get("/reviews", response_model=list[ReviewOut])

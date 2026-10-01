@@ -71,6 +71,12 @@ def ack_staff(lang: Language) -> str:
                  "In an emergency, call 108.")
 
 
+def ack_unknown() -> str:
+    # We don't know this number's language yet, so both.
+    return ("உங்கள் செய்தி மருத்துவமனைக்கு கிடைத்தது; செவிலியர் விரைவில் பதிலளிப்பார். "
+            "Your message reached the clinic; a nurse will reply soon.")
+
+
 def ack_stop(lang: Language) -> str:
     return ("சரி, இனி நினைவூட்டல்கள் அனுப்பமாட்டோம்." if lang is Language.ta
             else "Okay, we will not send further reminders.")

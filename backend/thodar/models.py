@@ -135,6 +135,20 @@ class LinkReview(Base):
     resolved: Mapped[bool] = mapped_column(default=False)
 
 
+class InboxMessage(Base):
+    """A message from a number Thodar does not know (new SIM, a relative's phone). Never dropped:
+    staff see it and attach the number to the right family."""
+
+    __tablename__ = "inbox"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str] = mapped_column(String(20), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # text | button | audio
+    text: Mapped[str | None] = mapped_column(Text)  # message text or voice-note transcript
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    resolved_mother_id: Mapped[int | None] = mapped_column(ForeignKey("mothers.id"))
+
+
 class ContactAttempt(Base):
     __tablename__ = "contact_attempts"
 

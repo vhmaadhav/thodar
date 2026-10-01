@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import Inbox from "@/components/Inbox";
 import { api, postJSON, type Review } from "@/lib/api";
 
 const SOURCE = {
@@ -78,6 +79,7 @@ export default function ReviewPage() {
           </table>
         )}
       </section>
+      <Inbox />
     </main>
   );
 }
