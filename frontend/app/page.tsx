@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Handovers from "@/components/Handovers";
 import PhoneSimulator from "@/components/PhoneSimulator";
 import {
+  API,
   api,
   BUCKET_LABEL,
   type Bucket,
@@ -199,6 +200,15 @@ export default function WorklistPage() {
                         </form>
                       ) : (
                         <>
+                          {r.next_step === "Voice call" && (
+                            <button
+                              className="btn small"
+                              title="Hear the Tamil reminder the voice call will speak (Bulbul v3)"
+                              onClick={() => new Audio(`${API}/items/${r.item_id}/voice-preview`).play().catch(() => setError("Voice preview needs the Sarvam key on the server."))}
+                            >
+                              ▶ Hear call
+                            </button>
+                          )}
                           <button className="btn small" disabled={busy} onClick={() => act(r.item_id, "no_answer")}>
                             No answer
                           </button>

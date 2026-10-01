@@ -1,9 +1,11 @@
 """Endpoints for WhatsApp (webhook + reminder runs) and for the Sarvam voice agent's tool calls."""
 
+import base64
 from datetime import date
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,6 +15,7 @@ from thodar.config import get_settings
 from thodar.db import get_session
 from thodar.messaging import templates
 from thodar.messaging.service import handle_incoming, run_reminders
+from thodar.messaging.sarvam import SarvamClient
 from thodar.messaging.whatsapp import Incoming, WhatsAppClient, parse_webhook
 from thodar.models import Channel, ContactAttempt, Mother, Outcome, ScheduleItem
 from thodar.worklist import Action, build_worklist, effective_due, record_action
@@ -55,6 +58,27 @@ async def receive(request: Request, today: date | None = None, session: Session 
         handled.append({"item_id": h.item_id, "intent": h.intent.kind, "reason": h.intent.reason,
                         "transcript": h.transcript})
     return {"handled": handled}
+
+
+_voice_cache: dict[str, bytes] = {}
+
+
+@router.get("/items/{item_id}/voice-preview")
+def voice_preview(item_id: int, today: date | None = None, session: Session = Depends(get_session)):
+    """The reminder exactly as the voice call will speak it (Bulbul v3), so staff can hear it first."""
+    item = session.get(ScheduleItem, item_id)
+    if item is None:
+        raise HTTPException(404, "item not found")
+    mother = session.get(Mother, item.mother_id)
+    on = max(effective_due(item), today or date.today())
+    text = templates.reminder(item, mother.name.split()[0], on, get_settings().clinic_name, mother.language)
+    text = text.split("?")[0] + "?"  # spoken version: drop the 'tap a button' line
+    if text not in _voice_cache:
+        audio = SarvamClient().speak(text, "ta-IN" if mother.language.value == "ta" else "en-IN", speaker="kavitha")
+        if audio is None:
+            raise HTTPException(501, "Voice preview needs THODAR_SARVAM_API_KEY.")
+        _voice_cache[text] = base64.b64decode(audio)
+    return Response(_voice_cache[text], media_type="audio/wav", headers={"X-Reminder-Text": quote(text)})
 
 
 @router.post("/demo/voice-note")
