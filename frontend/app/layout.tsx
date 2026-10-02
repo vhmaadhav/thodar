@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Sans } from "next/font/google";
+import AuthGate from "@/components/AuthGate";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <div className="thread-bar" />
         <div className="shell">
           <Nav />
-          {children}
+          <AuthGate>{children}</AuthGate>
           <p className="scope-note">
             Assistive, not clinical: Thodar schedules and reminds. It never diagnoses, scores risk or gives advice.
             Demo data is synthetic.

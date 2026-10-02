@@ -27,6 +27,15 @@ docker run -p 7860:7860 -e THODAR_SARVAM_API_KEY=... thodar   # live Tamil voice
 (voice notes, photo import, voice preview). Use a separate key with a small balance, or leave it
 unset for an offline demo.
 
+## Render (free, used for the live demo)
+
+`render.yaml` is a Blueprint: in the Render dashboard choose **New → Blueprint**, pick this repository and
+apply. It creates one free Docker web service (`thodar`) with a generated signing key, demo mode on and a
+daily AI-call cap. Add `THODAR_SARVAM_API_KEY` in the service's *Environment* tab to turn on live voice
+notes and photo import. The free plan sleeps after 15 minutes idle; the first visit then takes ~1 minute.
+
+Note: Hugging Face now requires a PRO subscription for Docker Spaces (checked Oct 2026).
+
 ## Other hosts
 
 Render, Railway or Fly.io: deploy the Dockerfile as a web service; set `PORT` if the host requires it.

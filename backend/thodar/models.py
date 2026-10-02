@@ -135,6 +135,46 @@ class LinkReview(Base):
     resolved: Mapped[bool] = mapped_column(default=False)
 
 
+class Role(StrEnum):
+    nurse = "nurse"  # runs the worklist, reminders, imports
+    doctor = "doctor"  # everything a nurse can, plus data export/erasure and the audit trail
+    vhn = "vhn"  # village health nurse: home visits in her villages only
+    admin = "admin"  # staff accounts, everything else
+
+
+class Staff(Base):
+    __tablename__ = "staff"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    role: Mapped[Role] = mapped_column(Enum(Role))
+    # For VHNs: the villages whose home visits they own, comma-separated. Empty = all.
+    villages: Mapped[str | None] = mapped_column(String(400))
+    pin_hash: Mapped[str] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+
+    @property
+    def village_list(self) -> list[str]:
+        return [v.strip().lower() for v in (self.villages or "").split(",") if v.strip()]
+
+
+class AuditEvent(Base):
+    """Who changed what, when. Written for every change to family data (DPDP Act accountability)."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    staff_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id"))
+    staff_name: Mapped[str] = mapped_column(String(120))  # kept even if the account is removed
+    action: Mapped[str] = mapped_column(String(60), index=True)
+    target_type: Mapped[str | None] = mapped_column(String(40))
+    target_id: Mapped[int | None]
+    detail: Mapped[str | None] = mapped_column(Text)
+
+
 class InboxMessage(Base):
     """A message from a number Thodar does not know (new SIM, a relative's phone). Never dropped:
     staff see it and attach the number to the right family."""

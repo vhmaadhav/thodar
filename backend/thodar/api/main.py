@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from thodar.api.auth_routes import router as auth_router
 from thodar.api.messaging_routes import router as messaging_router
 from thodar.api.messaging_routes import whatsapp
 from thodar.scheduler import daily_loop
@@ -42,9 +43,11 @@ from thodar.importer import (
 )
 from thodar import normalize
 from thodar import ai_budget
+from thodar.auth import ALL_ROLES, OFFICE, SENIOR, Actor, audit, require
+from thodar.models import Channel as _Channel
 from thodar.benefits import benefit_for
 from thodar.draft_checks import check_rows
-from thodar.models import ErasureLog, OutboxMessage, InboxMessage, Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
+from thodar.models import Role, ErasureLog, OutboxMessage, InboxMessage, Language, Baby, Channel, ContactAttempt, ItemStatus, LinkReview, Mother, Outcome, ScheduleItem
 from thodar.schedule_engine import expire_items, load_rules
 from thodar.worklist import Bucket, build_worklist, record_action
 
@@ -62,6 +65,7 @@ app = FastAPI(title="Thodar", version="0.1.0", lifespan=lifespan,
               description="One follow-up thread for every mother and baby. Assistive, not clinical.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(messaging_router)
+app.include_router(auth_router)
 
 IMPORTERS = {
     "anc": import_anc_register,
@@ -81,7 +85,7 @@ def _item(i: ScheduleItem) -> ItemOut:
 
 
 @app.get("/ai")
-def ai_providers():
+def ai_providers(_: Actor = Depends(require(*ALL_ROLES))):
     """Which provider does each AI job, where data is processed, and what happens without it."""
     s = get_settings()
     try:
@@ -118,7 +122,7 @@ def health() -> dict:
 
 @app.get("/worklist", response_model=list[WorklistRow])
 def worklist(today: date | None = None, owner: str | None = None, horizon_days: int = 7,
-             session: Session = Depends(get_session)):
+             actor: Actor = Depends(require(*ALL_ROLES)), session: Session = Depends(get_session)):
     today = today or date.today()
     expire_items(session, today)
     session.commit()
@@ -134,27 +138,39 @@ def worklist(today: date | None = None, owner: str | None = None, horizon_days: 
             benefit=f"₹{b.amount:,} instalment" if (b := benefit_for(r.item.code)) else None,
         )
         for r in rows
+        if actor.can_see_village(r.mother.village)
     ]
 
 
 @app.post("/items/{item_id}/actions", response_model=ItemOut)
-def act(item_id: int, body: ActionIn, session: Session = Depends(get_session)):
+def act(item_id: int, body: ActionIn, actor: Actor = Depends(require(*ALL_ROLES)),
+        session: Session = Depends(get_session)):
     item = session.get(ScheduleItem, item_id)
     if item is None:
         raise HTTPException(404, "item not found")
+    channel = _Channel.phone
+    if actor.role is Role.vhn:
+        mother = session.get(Mother, item.mother_id)
+        if not actor.can_see_village(mother.village):
+            raise HTTPException(403, "This family is outside your villages")
+        if body.action not in {"confirm", "reschedule", "no_answer", "moved", "wrong_number"}:
+            raise HTTPException(403, "A village health nurse records visit outcomes only")
+        channel = _Channel.visit
+    who = actor.name if actor.id is not None else body.actor
     try:
-        record_action(session, item, body.action, on=body.on, note=body.note, actor=body.actor)
+        record_action(session, item, body.action, on=body.on, note=body.note, actor=who, channel=channel)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
+    audit(session, actor, f"visit_{body.action}", "item", item.id, on=body.on, note=body.note)
     session.commit()
     session.refresh(item)
     return _item(item)
 
 
 @app.get("/mothers/{mother_id}/thread", response_model=ThreadOut)
-def thread(mother_id: int, session: Session = Depends(get_session)):
+def thread(mother_id: int, actor: Actor = Depends(require(*ALL_ROLES)), session: Session = Depends(get_session)):
     m = session.get(Mother, mother_id)
-    if m is None:
+    if m is None or not actor.can_see_village(m.village):
         raise HTTPException(404, "mother not found")
     pregnancies = []
     for p in m.pregnancies:
@@ -170,7 +186,8 @@ def thread(mother_id: int, session: Session = Depends(get_session)):
 
 
 @app.patch("/mothers/{mother_id}")
-def update_mother(mother_id: int, body: MotherPatch, session: Session = Depends(get_session)):
+def update_mother(mother_id: int, body: MotherPatch, actor: Actor = Depends(require(*OFFICE)),
+                  session: Session = Depends(get_session)):
     """Consent, language and phone. Withdrawing consent stops all automated reminders at once."""
     m = session.get(Mother, mother_id)
     if m is None:
@@ -193,13 +210,15 @@ def update_mother(mother_id: int, body: MotherPatch, session: Session = Depends(
         m.family_phone = cleaned
     if body.family_relation is not None:
         m.family_relation = body.family_relation or None
+    audit(session, actor, "family_updated", "mother", m.id, **body.model_dump(exclude_none=True))
     session.commit()
     return {"ok": True, "consent_at": m.consent_at, "opted_out": m.opted_out, "language": m.language,
             "phone": m.phone, "family_phone": m.family_phone, "family_relation": m.family_relation}
 
 
 @app.get("/families", response_model=list[FamilySummary])
-def families(q: str | None = None, today: date | None = None, session: Session = Depends(get_session)):
+def families(q: str | None = None, today: date | None = None, actor: Actor = Depends(require(*ALL_ROLES)),
+             session: Session = Depends(get_session)):
     """Every mother with her current stage and open/missed counts. Optional name/phone search."""
     today = today or date.today()
     stmt = select(Mother).order_by(Mother.name)
@@ -207,6 +226,8 @@ def families(q: str | None = None, today: date | None = None, session: Session =
         stmt = stmt.where(Mother.name.ilike(f"%{q}%") | Mother.phone.like(f"%{q}%"))
     out = []
     for m in session.scalars(stmt):
+        if not actor.can_see_village(m.village):
+            continue
         latest = max(m.pregnancies, key=lambda p: p.lmp or p.delivery_date or date.min, default=None)
         if latest is None or latest.delivery_date is None:
             stage = "pregnant"
@@ -225,7 +246,8 @@ def families(q: str | None = None, today: date | None = None, session: Session =
 
 
 @app.get("/handovers")
-def handovers(days: int = 14, today: date | None = None, session: Session = Depends(get_session)):
+def handovers(days: int = 14, today: date | None = None, _: Actor = Depends(require(*OFFICE)),
+              session: Session = Depends(get_session)):
     """Babies born recently: the obstetrics-to-paediatrics handover, with what paediatrics now owns."""
     today = today or date.today()
     out = []
@@ -246,7 +268,7 @@ def handovers(days: int = 14, today: date | None = None, session: Session = Depe
 
 
 @app.get("/insights/funnel", response_model=list[FunnelStep])
-def funnel(today: date | None = None, session: Session = Depends(get_session)):
+def funnel(today: date | None = None, _: Actor = Depends(require(*OFFICE)), session: Session = Depends(get_session)):
     """Where families drop off, visit by visit. Counts only; no individual is scored."""
     today = today or date.today()
     expire_items(session, today)
@@ -272,16 +294,21 @@ def funnel(today: date | None = None, session: Session = Depends(get_session)):
 
 
 @app.post("/import/{source}")
-async def import_register(source: str, file: UploadFile, session: Session = Depends(get_session)):
+async def import_register(source: str, file: UploadFile, actor: Actor = Depends(require(*OFFICE)),
+                          session: Session = Depends(get_session)):
     if source not in IMPORTERS:
         raise HTTPException(404, f"unknown source; use one of {sorted(IMPORTERS)}")
     df = read_table(io.BytesIO(await file.read()), filename=file.filename or "")
     report = IMPORTERS[source](session, df)
+    audit(session, actor, "register_imported", source=source, file=file.filename, rows=report.rows,
+          created=report.created, linked=report.linked)
+    session.commit()
     return report.__dict__
 
 
 @app.post("/import/{source}/photo")
-async def import_photo(source: str, file: UploadFile, language: str = "ta-IN"):
+async def import_photo(source: str, file: UploadFile, language: str = "ta-IN",
+                       _: Actor = Depends(require(*OFFICE))):
     """Reads a photographed register page with Sarvam Vision. Returns DRAFT rows for a nurse to
     check and correct; nothing is saved until they are posted to /import/{source}/rows."""
     if source not in IMPORTERS:
@@ -299,17 +326,21 @@ async def import_photo(source: str, file: UploadFile, language: str = "ta-IN"):
 
 
 @app.post("/import/{source}/rows")
-def import_rows(source: str, rows: list[dict], session: Session = Depends(get_session)):
+def import_rows(source: str, rows: list[dict], actor: Actor = Depends(require(*OFFICE)),
+                session: Session = Depends(get_session)):
     """Imports rows a nurse has checked (from a photo draft or typed in)."""
     if source not in IMPORTERS:
         raise HTTPException(404, f"unknown source; use one of {sorted(IMPORTERS)}")
     df = pd.DataFrame(rows, dtype=str)
     df = df.where(df.notna(), None)
-    return IMPORTERS[source](session, df).__dict__
+    report = IMPORTERS[source](session, df)
+    audit(session, actor, "register_imported", source=source, via="photo draft", rows=report.rows)
+    session.commit()
+    return report.__dict__
 
 
 @app.get("/inbox")
-def inbox(session: Session = Depends(get_session)):
+def inbox(_: Actor = Depends(require(*OFFICE)), session: Session = Depends(get_session)):
     """Messages from numbers not on file, newest first."""
     rows = session.scalars(select(InboxMessage).where(InboxMessage.resolved_mother_id.is_(None))
                            .order_by(InboxMessage.received_at.desc()))
@@ -323,7 +354,8 @@ class InboxResolve(BaseModel):
 
 
 @app.post("/inbox/{message_id}/attach")
-def attach_inbox(message_id: int, body: InboxResolve, session: Session = Depends(get_session)):
+def attach_inbox(message_id: int, body: InboxResolve, actor: Actor = Depends(require(*OFFICE)),
+                 session: Session = Depends(get_session)):
     """Attach an unknown number to a family: as the mother's new number or as the family contact.
     Every unread message from that number is resolved together."""
     msg = session.get(InboxMessage, message_id)
@@ -337,12 +369,13 @@ def attach_inbox(message_id: int, body: InboxResolve, session: Session = Depends
     for m in session.scalars(select(InboxMessage).where(InboxMessage.phone == msg.phone,
                                                        InboxMessage.resolved_mother_id.is_(None))):
         m.resolved_mother_id = mother.id
+    audit(session, actor, "number_attached", "mother", mother.id, as_=body.as_)
     session.commit()
     return {"ok": True, "phone": mother.phone, "family_phone": mother.family_phone}
 
 
 @app.get("/reviews", response_model=list[ReviewOut])
-def reviews(session: Session = Depends(get_session)):
+def reviews(_: Actor = Depends(require(*OFFICE)), session: Session = Depends(get_session)):
     out = []
     for r in session.scalars(select(LinkReview).where(LinkReview.resolved.is_(False))):
         out.append(ReviewOut(id=r.id, source=r.source, row=json.loads(r.row),
@@ -353,17 +386,20 @@ def reviews(session: Session = Depends(get_session)):
 
 
 @app.post("/reviews/{review_id}/dismiss")
-def dismiss_review(review_id: int, session: Session = Depends(get_session)):
+def dismiss_review(review_id: int, actor: Actor = Depends(require(*OFFICE)),
+                   session: Session = Depends(get_session)):
     r = session.get(LinkReview, review_id)
     if r is None:
         raise HTTPException(404, "review not found")
     r.resolved = True
+    audit(session, actor, "link_review_dismissed", "review", r.id)
     session.commit()
     return {"ok": True}
 
 
 @app.get("/metrics", response_model=Metrics)
-def metrics(today: date | None = None, session: Session = Depends(get_session)):
+def metrics(today: date | None = None, _: Actor = Depends(require(*ALL_ROLES)),
+            session: Session = Depends(get_session)):
     today = today or date.today()
     expire_items(session, today)
     session.commit()
@@ -404,11 +440,14 @@ def metrics(today: date | None = None, session: Session = Depends(get_session)):
 
 
 @app.get("/mothers/{mother_id}/export")
-def export_family(mother_id: int, session: Session = Depends(get_session)):
+def export_family(mother_id: int, actor: Actor = Depends(require(*SENIOR)),
+                  session: Session = Depends(get_session)):
     """Everything Thodar holds about a family, as JSON (DPDP Act right of access)."""
     m = session.get(Mother, mother_id)
     if m is None:
         raise HTTPException(404, "mother not found")
+    audit(session, actor, "family_exported", "mother", m.id)
+    session.commit()
     items = list(session.scalars(select(ScheduleItem).where(ScheduleItem.mother_id == m.id)))
     return {
         "mother": {"name": m.name, "phone": m.phone, "rch_id": m.rch_id, "abha": m.abha, "village": m.village,
@@ -431,7 +470,8 @@ class ErasureIn(BaseModel):
 
 
 @app.post("/mothers/{mother_id}/erase")
-def erase_family(mother_id: int, body: ErasureIn, session: Session = Depends(get_session)):
+def erase_family(mother_id: int, body: ErasureIn, actor: Actor = Depends(require(*SENIOR)),
+                 session: Session = Depends(get_session)):
     """Erases a family's data on request (DPDP Act). Irreversible; only a count is kept as proof."""
     m = session.get(Mother, mother_id)
     if m is None:
@@ -462,5 +502,6 @@ def erase_family(mother_id: int, body: ErasureIn, session: Session = Depends(get
     session.delete(m)
     n += 1
     session.add(ErasureLog(records_deleted=n, requested_by=body.requested_by))
+    audit(session, actor, "family_erased", "mother", mother_id, records_deleted=n)  # no personal data kept
     session.commit()
     return {"erased": True, "records_deleted": n}

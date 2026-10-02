@@ -100,13 +100,81 @@ export interface FamilySummary {
   missed: number;
 }
 
+// ---- Sign-in -------------------------------------------------------------------------------------
+
+export type Role = "nurse" | "doctor" | "vhn" | "admin";
+
+export interface StaffMe {
+  id: number | null;
+  name: string;
+  role: Role;
+  villages: string[];
+}
+
+const TOKEN_KEY = "thodar.token";
+const STAFF_KEY = "thodar.staff";
+
+function store(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function getToken(): string | null {
+  return store()?.getItem(TOKEN_KEY) ?? null;
+}
+
+export function getStaff(): StaffMe | null {
+  const raw = store()?.getItem(STAFF_KEY);
+  try {
+    return raw ? (JSON.parse(raw) as StaffMe) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveSession(token: string, staff: StaffMe) {
+  store()?.setItem(TOKEN_KEY, token);
+  store()?.setItem(STAFF_KEY, JSON.stringify(staff));
+}
+
+export function signOut() {
+  store()?.removeItem(TOKEN_KEY);
+  store()?.removeItem(STAFF_KEY);
+  // A full reload on purpose: it drops every in-memory copy of family data from the signed-out session.
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+  window.location.href = "/login";
+}
+
+/** fetch with the staff token; a 401 sends the user to the sign-in page. */
+export async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${API}${path}`, { cache: "no-store", ...init, headers });
+  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    signOut();
+  }
+  return res;
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, { cache: "no-store", ...init });
+  const res = await authFetch(path, init);
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`${res.status}: ${body}`);
+    let detail = body;
+    try {
+      detail = JSON.parse(body).detail ?? body;
+    } catch {}
+    throw new Error(`${res.status}: ${detail}`);
   }
   return res.json() as Promise<T>;
+}
+
+export function patchJSON<T>(path: string, body: unknown): Promise<T> {
+  return api<T>(path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
 
 export function postJSON<T>(path: string, body: unknown): Promise<T> {

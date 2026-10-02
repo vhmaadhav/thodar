@@ -19,6 +19,8 @@ def offline(monkeypatch):
     """Tests never call real Sarvam / WhatsApp / ElevenLabs, even if backend/.env holds live keys."""
     for var in ("THODAR_SARVAM_API_KEY", "THODAR_WHATSAPP_TOKEN", "THODAR_ELEVENLABS_API_KEY"):
         monkeypatch.setenv(var, "")
+    # Most tests exercise behaviour, not sign-in; tests/test_auth.py switches it back on.
+    monkeypatch.setenv("THODAR_AUTH_REQUIRED", "false")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import Handovers from "@/components/Handovers";
 import PhoneSimulator from "@/components/PhoneSimulator";
 import {
-  API,
   api,
+  authFetch,
   BUCKET_LABEL,
   type Bucket,
   fmtDate,
@@ -71,6 +71,18 @@ export default function WorklistPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function playPreview(itemId: number) {
+    const res = await authFetch(`/items/${itemId}/voice-preview`);
+    if (!res.ok) {
+      setError("Voice preview needs the Sarvam key on the server.");
+      return;
+    }
+    const url = URL.createObjectURL(await res.blob());
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    audio.play().catch(() => setError("The browser blocked audio playback."));
   }
 
   async function sendReminders() {
@@ -217,7 +229,7 @@ export default function WorklistPage() {
                             <button
                               className="btn small"
                               title="Hear the Tamil reminder the voice call will speak (Bulbul v3)"
-                              onClick={() => new Audio(`${API}/items/${r.item_id}/voice-preview`).play().catch(() => setError("Voice preview needs the Sarvam key on the server."))}
+                              onClick={() => playPreview(r.item_id)}
                             >
                               ▶ Hear call
                             </button>

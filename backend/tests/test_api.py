@@ -137,8 +137,9 @@ def test_brought_back_into_care_metric(client):
     client.post("/import/delivery", files={"file": ("del.csv", DELIVERY)})
     row = next(r for r in client.get("/worklist", params={"today": TODAY}).json() if r["label"] == "PNC day 7")
     client.post(f"/items/{row['item_id']}/actions", json={"action": "request_visit"})  # Thodar follows up
-    client.post(f"/items/{row['item_id']}/actions", json={"action": "done", "on": str(TODAY)})  # then it happens
-    m = client.get("/metrics", params={"today": TODAY}).json()
+    # ...then it happens. Use the real date: the follow-up above is timestamped with the real clock.
+    client.post(f"/items/{row['item_id']}/actions", json={"action": "done", "on": str(date.today())})
+    m = client.get("/metrics", params={"today": date.today()}).json()
     assert m["brought_back_visits"] == 1 and m["brought_back_families"] == 1
 
 
