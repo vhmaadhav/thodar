@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from thodar import normalize
 from thodar.config import get_settings
 from thodar import ai_budget
+from thodar.auth import OFFICE, Actor, audit, require
 from thodar.db import get_session
 from thodar.messaging import templates
 from thodar.messaging.service import handle_incoming, run_reminders
@@ -60,15 +61,18 @@ def whatsapp() -> WhatsAppClient:
 
 
 @router.post("/reminders/run")
-def reminders_run(today: date | None = None, session: Session = Depends(get_session),
+def reminders_run(today: date | None = None, actor: Actor = Depends(require(*OFFICE)),
+                  session: Session = Depends(get_session),
                   wa: WhatsAppClient = Depends(whatsapp)):
     run = run_reminders(session, today or date.today(), wa, clinic=get_settings().clinic_name)
+    audit(session, actor, "reminders_sent", families=run.sent)
+    session.commit()
     flush_outbox(session)
     return {**run.__dict__, "dry_run": not wa.enabled}
 
 
 @router.get("/outbox")
-def outbox(session: Session = Depends(get_session)):
+def outbox(_: Actor = Depends(require(*OFFICE)), session: Session = Depends(get_session)):
     """Messages that would have been sent (dry-run mode only), oldest first. Used by the demo UI."""
     flush_outbox(session)
     rows = list(session.scalars(select(OutboxMessage).order_by(OutboxMessage.id.desc()).limit(80)))
@@ -99,7 +103,8 @@ _voice_cache: dict[str, bytes] = {}
 
 
 @router.get("/items/{item_id}/voice-preview")
-def voice_preview(item_id: int, today: date | None = None, session: Session = Depends(get_session)):
+def voice_preview(item_id: int, today: date | None = None, _: Actor = Depends(require(*OFFICE)),
+                  session: Session = Depends(get_session)):
     """The reminder exactly as the voice call will speak it (Bulbul v3), so staff can hear it first."""
     item = session.get(ScheduleItem, item_id)
     if item is None:
@@ -119,6 +124,7 @@ def voice_preview(item_id: int, today: date | None = None, session: Session = De
 
 @router.post("/demo/voice-note")
 async def demo_voice_note(file: UploadFile, phone: str = Form(...), today: date | None = None,
+                          _: Actor = Depends(require(*OFFICE)),
                           session: Session = Depends(get_session), wa: WhatsAppClient = Depends(whatsapp)):
     """Demo stand-in for a WhatsApp voice note: same path as the webhook, audio uploaded directly."""
     p = normalize.phone(phone)

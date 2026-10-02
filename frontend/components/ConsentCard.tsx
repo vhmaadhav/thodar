@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API, fmtDate, type Thread } from "@/lib/api";
+import { authFetch, fmtDate, type Thread } from "@/lib/api";
 
 const SCRIPT =
   "We would like to send you reminders about your visits and your baby's vaccinations by WhatsApp or a phone " +
@@ -18,7 +18,7 @@ export default function ConsentCard({ thread, onChange }: { thread: Thread; onCh
 
   async function patch(body: object) {
     setBusy(true);
-    const res = await fetch(`${API}/mothers/${thread.mother_id}`, {
+    const res = await authFetch(`/mothers/${thread.mother_id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

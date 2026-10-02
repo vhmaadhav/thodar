@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { API, api, postJSON } from "@/lib/api";
+import { api, authFetch, postJSON } from "@/lib/api";
 
 interface OutMsg {
   to: string;
@@ -93,7 +93,7 @@ export default function PhoneSimulator({ onChange, tick }: { onChange: () => voi
     fd.append("file", blob, file);
     fd.append("phone", active);
     try {
-      const res = await fetch(`${API}/demo/voice-note`, { method: "POST", body: fd });
+      const res = await authFetch(`/demo/voice-note`, { method: "POST", body: fd });
       const h = await res.json();
       if (!res.ok) throw new Error(h.detail ?? res.statusText);
       setReplies((r) => [

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { API, postJSON } from "@/lib/api";
+import { authFetch, postJSON } from "@/lib/api";
 
 /** DPDP Act: a family can see everything held about them, and ask for it to be erased. */
 export default function DataRights({ motherId, name }: { motherId: number; name: string }) {
@@ -12,7 +12,11 @@ export default function DataRights({ motherId, name }: { motherId: number; name:
   const [error, setError] = useState<string | null>(null);
 
   async function exportData() {
-    const res = await fetch(`${API}/mothers/${motherId}/export`);
+    const res = await authFetch(`/mothers/${motherId}/export`);
+    if (!res.ok) {
+      setError(res.status === 403 ? "Only a doctor or admin can export a family's data" : "Export failed");
+      return;
+    }
     const blob = new Blob([JSON.stringify(await res.json(), null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

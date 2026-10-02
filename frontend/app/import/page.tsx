@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { API, postJSON } from "@/lib/api";
+import { authFetch, postJSON } from "@/lib/api";
 
 const SOURCES = [
   { key: "anc", title: "ANC register", cols: "RCH ID, Name, Mobile, Village, LMP, ANC1–ANC4" },
@@ -40,7 +40,7 @@ export default function ImportPage() {
     const fd = new FormData();
     fd.append("file", file);
     try {
-      const res = await fetch(`${API}/import/${source}`, { method: "POST", body: fd });
+      const res = await authFetch(`/import/${source}`, { method: "POST", body: fd });
       const body = await res.json();
       setReports((r) => ({ ...r, [source]: res.ok ? body : body.detail ?? JSON.stringify(body) }));
     } catch (e) {
@@ -53,7 +53,7 @@ export default function ImportPage() {
     fd.append("file", file);
     setReading(source);
     try {
-      const res = await fetch(`${API}/import/${source}/photo`, { method: "POST", body: fd });
+      const res = await authFetch(`/import/${source}/photo`, { method: "POST", body: fd });
       const body = await res.json();
       if (!res.ok) throw new Error(body.detail ?? JSON.stringify(body));
       setDrafts((d) => ({ ...d, [source]: body.rows }));

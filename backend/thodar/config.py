@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     session_days: str = "wed"
     # Send the day's reminders automatically at this time (IST), e.g. "09:00". Empty = manual only.
     auto_reminders_at: str = ""
+    # Staff sign-in. Set a long random secret in production; tokens are signed with it.
+    auth_required: bool = True
+    secret_key: str = "dev-insecure-change-me"
+    token_hours: int = 12
+    # Demo mode: the sign-in page lists demo accounts (synthetic data only).
+    demo_mode: bool = False
+
     # Max paid AI calls (Sarvam) per day from the demo/upload endpoints; protects credit on a public demo.
     ai_daily_budget: int = 300
     # Mention Tamil Nadu's Dr Muthulakshmi Reddy maternity-scheme instalments in reminders.
