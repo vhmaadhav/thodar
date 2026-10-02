@@ -44,8 +44,14 @@ jobs:
         run: |
           for i in $(seq 1 60); do curl -sf localhost:7860/api/health && break; sleep 2; done
           curl -sf localhost:7860/ | grep -q "Thodar"
-          curl -sf localhost:7860/api/metrics
-          curl -sf -X POST localhost:7860/api/reminders/run | grep -q '"sent"'
           curl -sf localhost:7860/samples/voice_fever_ta.wav -o /dev/null
+          # Protected endpoints refuse anonymous calls, then work after signing in as the demo nurse
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:7860/api/worklist)" = "401"
+          TOKEN=$(curl -sf -X POST localhost:7860/api/auth/login -H 'Content-Type: application/json'             -d '{"phone":"9000100001","pin":"1111"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          curl -sf localhost:7860/api/metrics -H "Authorization: Bearer $TOKEN"
+          curl -sf -X POST localhost:7860/api/reminders/run -H "Authorization: Bearer $TOKEN" | grep -q '"sent"'
+          # The VHN demo account sees her field list
+          VHN=$(curl -sf -X POST localhost:7860/api/auth/login -H 'Content-Type: application/json'             -d '{"phone":"9000100003","pin":"3333"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["token"])')
+          curl -sf localhost:7860/api/field/visits -H "Authorization: Bearer $VHN" | grep -q item_id
       - if: failure()
         run: docker logs thodar
