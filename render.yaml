@@ -1,0 +1,24 @@
+# Render Blueprint: the whole Thodar demo (Next.js UI + FastAPI) as one free Docker web service.
+# Render sets $PORT; the container's start script serves the UI on it and proxies /api/* to FastAPI.
+# Demo data is synthetic and regenerated on every start (the free plan sleeps after 15 min idle).
+services:
+  - type: web
+    name: thodar
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: feature/care-team-accounts
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: THODAR_DEMO_MODE
+        value: "true"
+      - key: THODAR_SECRET_KEY
+        generateValue: true
+      - key: THODAR_AI_DAILY_BUDGET
+        value: "100"
+      # Optional: set in the Render dashboard to enable live Tamil voice notes and photo import.
+      - key: THODAR_SARVAM_API_KEY
+        sync: false
