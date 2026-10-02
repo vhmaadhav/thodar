@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Thodar — Design rationale and evidence</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+  :root { --ink:#1E2B2A; --soft:#4B524D; --muted:#6B6F68; --cotton:#F4EFE4; --line:#E2D9C6; --madder:#A63D24; --turmeric:#D9A441; --leaf:#2F6B4F; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"IBM Plex Sans", Arial, sans-serif; font-size:10.4pt; line-height:1.5; color:var(--ink); }
+  h1, h2, h3 { font-family:"Fraunces", Georgia, serif; font-weight:600; margin:0; }
+  h1 { font-size:30pt; line-height:1.05; }
+  h2 { font-size:15.5pt; margin:20px 0 6px; padding-top:6px; border-top:2px solid var(--madder); break-after:avoid; }
+  h3 { font-size:11.5pt; margin:12px 0 3px; break-after:avoid; }
+  p { margin:0 0 7px; }
+  ul { margin:0 0 8px; padding-left:16px; }
+  li { margin:0 0 3px; }
+  a { color:var(--madder); text-decoration:none; }
+  .eyebrow { font-size:8.5pt; letter-spacing:.14em; text-transform:uppercase; color:var(--madder); font-weight:600; }
+  .muted { color:var(--muted); }
+  .small { font-size:9pt; }
+  .cover { background:var(--ink); color:var(--cotton); padding:26px 28px 22px; border-radius:10px; margin-bottom:14px; }
+  .cover .eyebrow { color:var(--turmeric); }
+  .cover h1 { color:var(--cotton); margin:8px 0 4px; }
+  .cover .tag { font-family:"Fraunces", Georgia, serif; font-style:italic; color:var(--turmeric); font-size:13pt; margin-top:8px; }
+  .cover .meta { color:#C9C3B4; font-size:9.2pt; margin-top:10px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 10px; }
+  .stat { background:var(--cotton); border-radius:8px; padding:9px 11px; }
+  .stat b { display:block; font-family:"Fraunces", Georgia, serif; font-size:17pt; color:var(--madder); line-height:1.1; }
+  .stat span { font-size:8.6pt; color:var(--soft); }
+  table { width:100%; border-collapse:collapse; margin:6px 0 10px; font-size:9.2pt; }
+  th { text-align:left; background:var(--ink); color:var(--cotton); padding:5px 7px; font-weight:600; }
+  td { padding:5px 7px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr { break-inside:avoid; }
+  .box { background:var(--cotton); border-left:4px solid var(--madder); border-radius:6px; padding:8px 11px; margin:8px 0; break-inside:avoid; }
+  .ok { color:var(--leaf); font-weight:600; }
+  sup { font-size:7pt; color:var(--madder); }
+  .refs li { font-size:8.8pt; margin-bottom:4px; word-break:break-word; }
+  .flow { display:flex; gap:5px; align-items:stretch; margin:6px 0 10px; }
+  .flow div { flex:1; background:var(--cotton); border-radius:6px; padding:7px 8px; font-size:8.6pt; }
+  .flow div b { display:block; font-size:9.4pt; color:var(--ink); }
+  .pagebreak { break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="eyebrow">Health-a-thon 2026 · Maternal &amp; Women's Health · Patient Follow-up &amp; Continuity of Care</div>
+  <h1>Thodar</h1>
+  <div>Design rationale and evidence: what we built, why each choice was made, and how it works</div>
+  <div class="tag">Doctors set the plan. Thodar makes sure it happens.</div>
+  <div class="meta">Team Highest in the Room · Dr Sughapriya V. C (paediatrician, clinical lead) · Maadhav V H (team and technical lead) · Sachin A S · Nakul T · Nishanth R S<br>
+  Live demo: <a style="color:var(--turmeric)" href="https://thodar.onrender.com">thodar.onrender.com</a> (synthetic data) · October 2026</div>
+</div>
+
+<h2>1. In one paragraph</h2>
+<p><b>Thodar</b> (Tamil for "to continue, to follow through") is a follow-up desk for hospital and clinic care teams. It ties mother and baby into one care thread, from the first antenatal (ANC) visit to the child's second birthday. It reads the registers clinics already keep, links records into one thread per mother–baby pair, turns doctor-set plans and national schedules into due dates, and gives nurses a daily list of who is due, overdue or unreachable. Families get one WhatsApp or voice reminder in Tamil or English for the clinic's next session day; their replies, including voice notes, update the list. Thodar is <b>assistive, not clinical</b>: it never diagnoses, scores risk, interprets results or gives advice.</p>
+
+<h2>2. The problem: families start care, then drift</h2>
+<div class="grid3">
+  <div class="stat"><b>95.9% → 65.2%</b><span>start antenatal care → complete 4+ ANC visits (India)<sup>1</sup></span></div>
+  <div class="stat"><b>&gt;96% → 87.1%</b><span>any vaccine → fully immunised, children 12–23 months<sup>1</sup></span></div>
+  <div class="stat"><b>71.8%</b><span>receive the second measles dose<sup>1</sup></span></div>
+</div>
+<p>Even Tamil Nadu, among India's best performers, moved backwards between NFHS-5 and NFHS-6: four-visit ANC fell from 90.6% to 87.6%, full vaccination from 90.4% to 89.7%, and urban mothers (86.2%) now do worse than rural (88.6%).<sup>2</sup> Urban care runs through hospitals and private clinics, which is where Thodar works.</p>
+<p><b>Why it happens.</b> Pregnancy to age two is more than a dozen scheduled contacts across two departments. At delivery the mother's record stays with obstetrics and the baby's begins in paediatrics, so no one owns the whole journey. Follow-up in facilities still runs on registers, spreadsheets and phone calls, and much of the loss is preventable: in an Indian study the top reasons for a missed vaccine were <i>no reminder</i> (32.9%) and <i>forgetting</i> (26.6%).<sup>3</sup> Even vaccinated children are often late: 34.8% of measles doses were delayed.<sup>4</sup></p>
+<p><b>What already exists.</b> The government's JANANI platform (May 2026) gives field nurses (ANMs/VHNs) due lists and longitudinal records;<sup>5</sup> its main risk is adoption and the data-entry burden on those nurses.<sup>6</sup> Kilkari and mMitra send one-way voice messages to mothers. None gives a hospital or clinic team a single mother–baby thread with two-way replies, which is the gap Thodar fills, beside these systems rather than replacing them.</p>
+
+<h2>3. Design decisions and the evidence behind them</h2>
+<table>
+  <tr><th style="width:27%">Decision</th><th style="width:43%">Why (evidence)</th><th style="width:30%">How it shows up</th></tr>
+  <tr><td><b>One thread per mother–baby pair, created at birth</b></td><td>The handover from obstetrics to paediatrics is where ownership breaks; records split at delivery.</td><td>The delivery register creates the baby's checks and vaccines next to the mother's postnatal plan, owned by paediatrics.</td></tr>
+  <tr><td><b>Facility-side, beside JANANI/PICME/U-WIN</b></td><td>JANANI already serves field nurses;<sup>5</sup> hospitals and private clinics have nothing comparable, and new data entry is the main adoption risk.<sup>6</sup></td><td>Imports the registers, Excel sheets and HIS exports clinics already keep; no new data entry.</td></tr>
+  <tr><td><b>Reminders, two-way</b></td><td>No reminder and forgetting are the top reasons for missed vaccines;<sup>3</sup> SMS reminders cut unvaccinated children by about 15% (16 trials).<sup>7</sup> Replies keep phone numbers valid.</td><td>WhatsApp quick-replies and Tamil voice calls; replies update the worklist.</td></tr>
+  <tr><td><b>Name the next doses</b></td><td>Reminders about the <i>next</i> vaccine were part of the package that raised measles vaccination ~55% in Haryana.<sup>8</sup></td><td>"your baby's vaccination (OPV-2, Penta-2, RVV-2)".</td></tr>
+  <tr><td><b>One trip on the clinic's session day</b></td><td>Tamil Nadu PHCs run ANC and immunisation on a fixed day, Wednesday;<sup>9</sup> travel and time are common barriers.</td><td>One message per family for the next session day, mother and baby in one visit.</td></tr>
+  <tr><td><b>Include the family decision-maker</b></td><td>Fewer than a third of new mothers take part in care decisions; ~70% are made by one person, often the father or a grandmother (551 dyads).<sup>10</sup></td><td>Optional family contact (with consent) gets the same reminder and can reply.</td></tr>
+  <tr><td><b>Mention the instalment a visit unlocks</b></td><td>Incentives that grew along the schedule were part of the Haryana package;<sup>8</sup> TN's scheme pays ₹4,000 at the 7th-month check-up and ₹12,000 after delivery + BCG.<sup>11</sup></td><td>"This visit helps you become eligible for…"; a chip on the worklist.</td></tr>
+  <tr><td><b>Village health nurse field mode</b></td><td>Community ambassadors were part of the most cost-effective option in Haryana.<sup>8</sup> Some families can only be reached at the door.</td><td>A phone list of home visits in her villages, one outcome per door, works offline.</td></tr>
+  <tr><td><b>Missed after a catch-up period</b></td><td>A list of year-old visits buries the families a nurse can still help.</td><td>Each schedule has a catch-up period; after it the visit is <i>missed</i>, which is the loss-to-care measure.</td></tr>
+  <tr><td><b>Never stack doses in one trip</b></td><td>Doses in a series need intervals, and planning a catch-up schedule is clinical.</td><td>A trip holds only the next visit of each sequence; "the doctor will plan the rest".</td></tr>
+</table>
+
+<h2>4. Staying in scope: assistive, not clinical</h2>
+<p>The brief rules out diagnosis, treatment recommendations, clinical decision support, clinical risk scoring, interpretation of medical data and autonomous advice. Thodar's rules are built around that:</p>
+<ul>
+  <li><b>Fixed rules decide everything clinical-adjacent.</b> Due dates, order and ownership come from versioned schedule files a clinician signs off. The worklist is sorted only by days overdue and failed contact attempts, never by a risk score.</li>
+  <li><b>AI only reads paper and talks to families.</b> It digitises registers (a nurse confirms every row) and transcribes or labels replies with scheduling labels only (confirm, reschedule, moved, wrong number, stop).</li>
+  <li><b>Two locks on safety.</b> Every typed or spoken reply is read by rules <i>and</i> a language model. If either sees a health concern, a nurse handles it and the family is told a person will call (or to dial 108). The model can escalate but never overrule a rule. This was added after live testing found a Tanglish message ("my daughter is a bit unwell, can we come next week") that the rules alone read as a reschedule.</li>
+  <li><b>DPDP Act.</b> Consent is recorded before reminders and can be withdrawn; a family's data can be exported and erased; every change is in an audit trail; data is meant to stay in India.</li>
+</ul>
+
+<h2>5. How it works</h2>
+<div class="flow">
+  <div><b>1 · Read</b>Registers, Excel, HIS exports; photos of paper pages via Sarvam Vision, checked by a nurse.</div>
+  <div><b>2 · Link</b>Records matched on PICME/RCH ID, ABHA, phone, name and dates; unsure matches go to review.</div>
+  <div><b>3 · Schedule</b>ANC, PNC and UIP rules + doctor-set intervals become dated visits.</div>
+  <div><b>4 · Worklist</b>Due, overdue, unreachable; one-tap actions; handover panel.</div>
+  <div><b>5 · Reach</b>One WhatsApp/voice reminder per family; replies update the list.</div>
+</div>
+<h3>Technology</h3>
+<table>
+  <tr><th style="width:24%">Layer</th><th>Choice</th></tr>
+  <tr><td>Web app</td><td>Next.js (works on a nurse's phone), FastAPI backend, PostgreSQL (SQLite in the demo)</td></tr>
+  <tr><td>Rules</td><td>Versioned YAML schedules for ANC, PNC and the Universal Immunisation Programme, with windows and catch-up periods</td></tr>
+  <tr><td>Record linking</td><td>Exact IDs first, then fuzzy name + phone + village + date plausibility, with a human-readable reason; uncertain matches are never merged automatically</td></tr>
+  <tr><td>Messaging</td><td>WhatsApp Cloud API (quick-reply buttons); Sarvam Voice Agents for Tamil calls, limited to looking up and rescheduling a visit</td></tr>
+  <tr><td>Access</td><td>Staff sign-in, roles (nurse, doctor, village health nurse, admin), audit trail</td></tr>
+</table>
+<h3>Choosing AI providers on evidence, not on sponsorship</h3>
+<p>Sarvam AI is the event's technology partner, but each job uses what works best on Tamil clinic data, and providers are swappable:</p>
+<table>
+  <tr><th style="width:24%">Job</th><th style="width:46%">Evidence</th><th>Choice</th></tr>
+  <tr><td>Voice-note transcription</td><td>Vimarsha (2026): AI4Bharat's open-source IndicConformer leads both splits, Saaras close and robust in noise.<sup>12</sup> BRIDGE (2026): ElevenLabs Scribe v2 lowest WER (10.6%), Saaras third (20.2%).<sup>13</sup></td><td>Saaras by default (India-hosted); IndicConformer self-hostable; ElevenLabs only with explicit offshore consent. A script compares them on our own clips.</td></tr>
+  <tr><td>Reading registers</td><td>Sarvam Vision 2.1 reported best on Indic handwriting.<sup>14</sup></td><td>Sarvam Vision; suspicious cells flagged for the nurse.</td></tr>
+  <tr><td>Tamil voice</td><td>Clarity matters more than expressiveness for reminders.</td><td>Sarvam Bulbul v3</td></tr>
+</table>
+
+<h2>6. What is built and what we measured</h2>
+<ul>
+  <li><b>Working prototype, live:</b> <a href="https://thodar.onrender.com">thodar.onrender.com</a> with demo accounts for each role (synthetic data). Worklist, one-trip reminders, Tamil/English replies and voice notes, mother–baby thread, drop-off insights, review queue, unknown-number inbox, consent and data rights, audit trail, field mode.</li>
+  <li><b>69 automated tests</b> and CI that builds and runs the deployable container.</li>
+</ul>
+<table>
+  <tr><th style="width:42%">Live test (real Sarvam APIs)</th><th>Result</th></tr>
+  <tr><td>Tamil reminder spoken by Bulbul v3</td><td class="ok">2.6 s</td></tr>
+  <tr><td>Tamil reply spoken, then transcribed by Saaras v3</td><td class="ok">word for word, 0.8 s</td></tr>
+  <tr><td>Tanglish health message the rules missed</td><td class="ok">caught by Sarvam-105B → second safety lock added</td></tr>
+  <tr><td>A handwritten-style register page read by Sarvam Vision</td><td>9.5 s; 3 of 4 rows perfect; 3 overlapping dates misread → automatic flags added for the nurse</td></tr>
+  <tr><td>Voice note on the deployed site ("can't come today, Saturday")</td><td class="ok">transcribed and booked for Saturday</td></tr>
+</table>
+<p class="small muted">On synthetic data, marking visits past their catch-up period as missed cut the worklist from 387 rows to 32 actionable ones; bundling sent 26 messages for 26 families instead of one per visit. These are prototype figures, not field results.</p>
+
+<h2>7. Pilot plan (90 days) and limits</h2>
+<p><b>Pilot</b> at our paediatrician's practice, measured against a baseline from the same clinic's registers. Headline measure: <b>families brought back into care</b> (overdue visits that happen after Thodar follows up), which the prototype already counts. Also: ANC visits on time, PNC at 48 h and day 7, vaccine doses on time from 6 weeks to 9 months, and staff hours a week spent on follow-up calls.</p>
+<div class="box"><b>Honest limits.</b> Schedules, catch-up periods and Tamil wording need clinical sign-off before any pilot. WhatsApp needs a verified business number; voice calls through Sarvam Voice Agents are designed but not yet placed live. Some sources below were read as summaries only (marked *). All demo data is synthetic.</div>
+
+<h2>References</h2>
+<ol class="refs">
+  <li>MoHFW / PIB, National Family Health Survey-6 (2023–24) key findings, 29 May 2026. <a href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2266600">pib.gov.in/PressReleasePage.aspx?PRID=2266600</a></li>
+  <li>The New Indian Express, "Drop in antenatal hospital visits, fertility rate in Tamil Nadu: NFHS-6", 31 May 2026. <a href="https://www.newindianexpress.com/states/tamil-nadu/2026/May/31/drop-in-antenatal-hospital-visits-fertility-rate-in-tamil-nadu-nfhs-6">newindianexpress.com/…/tamil-nadu-nfhs-6</a></li>
+  <li>Patel &amp; Pandit 2011, Anand district, Gujarat; reasons for missed vaccination, as cited in <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6598255/">pmc.ncbi.nlm.nih.gov/articles/PMC6598255</a></li>
+  <li>Choudhary et al. 2019, "Delayed vaccination and its predictors among children under 2 years in India". <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC6996155/">pmc.ncbi.nlm.nih.gov/articles/PMC6996155</a></li>
+  <li>MoHFW / PIB, launch of the JANANI platform, 7 May 2026. <a href="https://www.pib.gov.in/PressReleasePage.aspx?PRID=2258625">pib.gov.in/PressReleasePage.aspx?PRID=2258625</a></li>
+  <li>ARMMAN, "JANANI's Greatest Challenge Lies Beyond the Portal", 26 June 2026. <a href="https://armman.org/jananis-greatest-challenge-lies-beyond-the-portal/">armman.org/jananis-greatest-challenge-lies-beyond-the-portal</a></li>
+  <li>GiveWell, "SMS reminders to increase infant vaccination" (meta-analysis of 16 RCTs). <a href="https://www.givewell.org/international/technical/programs/sms-reminders-for-vaccination">givewell.org/…/sms-reminders-for-vaccination</a></li>
+  <li>Banerjee, Chandrasekhar, Duflo et al., "Selecting the Most Effective Nudge: Evidence from a Large-Scale Experiment on Immunization", Econometrica, 2025. <a href="https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA19739">doi.org/10.3982/ECTA19739</a> · J-PAL summary: <a href="https://www.povertyactionlab.org/evaluation/improving-immunization-coverage-through-incentives-reminders-and-social-networks-india">povertyactionlab.org/…/india</a></li>
+  <li>* NHM Tamil Nadu, programme section (PHC ANC clinic and immunisation day: Wednesday) <a href="https://nhm.tn.gov.in/en/program-section">nhm.tn.gov.in/en/program-section</a>; The Hindu, vaccination at health and wellness centres on Wednesdays <a href="https://www.thehindu.com/news/cities/chennai/vaccination-services-to-be-made-available-in-health-and-wellness-centres-on-all-wednesdays/article69340754.ece">thehindu.com/…/article69340754.ece</a></li>
+  <li>Suri et al., "Investigating the role of family members in postnatal care: Evidence from mother-caregiver dyads in India", PLOS One, 2025. <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12422426/">pmc.ncbi.nlm.nih.gov/articles/PMC12422426</a></li>
+  <li>Dr Muthulakshmi Reddy Maternity Benefit Scheme, instalments (scheme guide; verify on the official portal). <a href="https://schemesinindia.in/schemes/tamil-nadu/tn-dr-muthulakshmi-reddy-maternity-benefit">schemesinindia.in/…/tn-dr-muthulakshmi-reddy-maternity-benefit</a></li>
+  <li>Vimarsha: Faithful ASR Evaluation for Indian Languages (AI4Bharat), arXiv 2026. <a href="https://arxiv.org/abs/2609.24199">arxiv.org/abs/2609.24199</a></li>
+  <li>Humyn Labs, BRIDGE benchmark of commercial speech recognition on Indian languages, May 2026 (via CXOtoday). <a href="https://cxotoday.com/media-coverage/humyn-labs-launches-report-for-ai-voice-benchmarking-across-indian-and-global-south-languages/">cxotoday.com/…/humyn-labs…</a></li>
+  <li>* Analytics Vidhya, "Sarvam Vision 2.1 Review: Indic OCR Benchmarks and Features", Sept 2026. <a href="https://www.analyticsvidhya.com/blog/2026/09/sarvam-vision-2-1-review/">analyticsvidhya.com/blog/2026/09/sarvam-vision-2-1-review</a></li>
+  <li>Further background: * Murthy et al. 2020, mMitra voice messages <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7268375/">PMC7268375</a>; * SMS reminders for childhood immunisation, BMJ Global Health 2021 <a href="https://gh.bmj.com/content/6/7/e005035">gh.bmj.com/content/6/7/e005035</a>; AI4Bharat IndicConformer model <a href="https://huggingface.co/ai4bharat/indic-conformer-600m-multilingual">huggingface.co/ai4bharat/indic-conformer-600m-multilingual</a>; Sarvam API pricing <a href="https://docs.sarvam.ai/api/getting-started/pricing">docs.sarvam.ai/api/getting-started/pricing</a></li>
+</ol>
+<p class="small muted">* read as a search summary only. Thodar is a prototype on synthetic data; it is assistive and non-diagnostic.</p>
+</body>
+</html>
